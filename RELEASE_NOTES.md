@@ -1,5 +1,8 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.0.4
+- **TO FRONT removed:** one button less, FOLD TAIL stays
+
 ### v1.0.3
 - **FOLD TAIL:** like Polarity's wrap: the whole selected tail is crossfaded over the start of the clip (equal power) and the clip ends exactly where the selection began
 

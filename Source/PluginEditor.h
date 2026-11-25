@@ -82,7 +82,6 @@ private:
     void doUndo();
     void doRedo();
     void doWrap();
-    void doRotate();
     void importFile (const juce::File&);
     void chooseImport();
     void showClipMenu();
@@ -107,7 +106,7 @@ private:
 
     // Editor
     juce::TextButton trimBtn { "TRIM" }, reverseBtn { "REVERSE" }, fadeBtn, normBtn { "NORMALIZE" }, deleteBtn { "DELETE" }, undoBtn { "UNDO" }, redoBtn { "REDO" };
-    juce::TextButton playBtn { "PLAY" }, loopBtn { "LOOP" }, wrapBtn { "FOLD TAIL" }, rotateBtn { "TO FRONT" }, importBtn { "IMPORT" };
+    juce::TextButton playBtn { "PLAY" }, loopBtn { "LOOP" }, wrapBtn { "FOLD TAIL" }, importBtn { "IMPORT" };
     juce::TextButton saveClipBtn { "SAVE" };
     DragButton dragClipBtn { "DRAG WAV" };
 
