@@ -1,5 +1,6 @@
 // Test des Editor-Kerns ohne JUCE:
 //   g++ -std=c++17 -O1 -Wall -Wextra tests/ClipTest.cpp Source/Clip.cpp Source/Audition.cpp -o /tmp/cliptest && /tmp/cliptest [dump.raw]
+#include "../Source/Align.h"
 #include "../Source/Audition.h"
 #include "../Source/Clip.h"
 #include <cmath>
@@ -185,6 +186,38 @@ int main (int argc, char** argv)
         CHECK (near (rmsDb (qr, { 0, qr.length() }), 20.0 * std::log10 (0.1 / std::sqrt (2.0)), 0.05));
         auto r3 = normalizeRms (qr, { 0, qr.length() }, -18.0, -0.1);
         CHECK (r3.ok && near (rmsDb (qr, { 0, qr.length() }), -18.0, 0.02));
+
+        // Raster-Kalibrierung: Kicks (60 Hz) + Hats, Audio 70 ms hinter dem Raster (125 BPM)
+        {
+            const double sr = 48000.0, beat = 60.0 / 125.0;
+            const int64_t lag = (int64_t) std::llround (0.070 * sr);
+            std::vector<float> mono ((size_t) (sr * 8.0), 0.0f);
+            std::vector<int64_t> beats;
+            unsigned seed = 12345;
+            for (int k = 0; k < 16; ++k)
+            {
+                const int64_t g = (int64_t) std::llround (k * beat * sr) + (int64_t) (0.1 * sr);
+                beats.push_back (g);
+                for (int64_t i = 0; i < (int64_t) (0.25 * sr); ++i)
+                    if (g + lag + i < (int64_t) mono.size())
+                        mono[(size_t) (g + lag + i)] += 0.8f * (float) (std::sin (2.0 * 3.14159265358979 * 60.0 * (double) i / sr) * std::exp (-(double) i / (0.07 * sr)));
+                const int64_t h = g + (int64_t) (0.5 * beat * sr) + lag;   // Hat auf dem Achtel
+                for (int64_t i = 0; i < (int64_t) (0.03 * sr); ++i)
+                    if (h + i < (int64_t) mono.size()) { seed = seed * 1664525u + 1013904223u; mono[(size_t) (h + i)] += 0.15f * ((float) (seed >> 8) / 8388608.0f - 1.0f) * (float) std::exp (-(double) i / (0.01 * sr)); }
+            }
+            const auto r = RememberAlign::estimateGridOffset (mono, sr, beats, beat);
+            CHECK (r.ok && r.hits >= 12);
+            CHECK (std::llabs (r.offsetSamples - lag) <= 48);          // besser als 1 ms
+            // negativer Versatz (Audio vor dem Raster)
+            std::vector<int64_t> early = beats;
+            for (auto& b : early) b += (int64_t) (0.2 * sr);
+            const auto r2 = RememberAlign::estimateGridOffset (mono, sr, early, beat);
+            CHECK (r2.ok && std::llabs (r2.offsetSamples - (lag - (int64_t) (0.2 * sr))) <= 48);
+            // reines Rauschen: kein verlaesslicher Wert
+            std::vector<float> noise ((size_t) (sr * 8.0));
+            for (auto& v : noise) { seed = seed * 1664525u + 1013904223u; v = 0.3f * ((float) (seed >> 8) / 8388608.0f - 1.0f); }
+            CHECK (! RememberAlign::estimateGridOffset (noise, sr, beats, beat).ok);
+        }
 
         if (argc > 1)   // Referenzdatei fuer den Vergleich mit ffmpeg ebur128 (float32 stereo interleaved, 48 kHz)
         {

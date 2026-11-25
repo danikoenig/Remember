@@ -102,6 +102,8 @@ private:
     void chooseImport();
     void showClipMenu();
     void showSettingsMenu();
+    void calibrateGrid();
+    void syncGridShift();
     int fadeLengthMs() const;
     int normMode() const;
     float trimThresholdDb() const;

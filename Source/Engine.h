@@ -59,6 +59,7 @@ namespace RememberDSP
         std::vector<Meta> meta;
         std::atomic<int64_t> written { 0 };
         std::atomic<int64_t> metaWritten { 0 };
+        std::atomic<int64_t> gridShift { 0 };   // Samples: Raster (Meta-Eintraege) wird um diesen Wert nach hinten verschoben (Latenz vor dem Plugin)
 
         // nur Audio-Thread
         float curMin = 0.0f, curMax = 0.0f;
@@ -71,7 +72,8 @@ namespace RememberDSP
         // Kopiert [start, start+len) nach dst[ch][0..len). false, wenn ausserhalb des gueltigen Bereichs
         bool copyRange (int64_t start, int64_t len, float* const* dst, int dstChannels) const;
         // Meta-Eintraege, die [s0, s1] betreffen (inkl. dem Eintrag davor)
-        void readMeta (int64_t s0, int64_t s1, std::vector<Meta>& out) const;
+        // raw = true: ohne gridShift (nur intern)
+        void readMeta (int64_t s0, int64_t s1, std::vector<Meta>& out, bool raw = false) const;
         void pushMeta (const Meta& m);
     };
 
@@ -99,6 +101,9 @@ namespace RememberDSP
         void collectGarbage();          // Oberflaeche, regelmaessig
         double getSampleRate() const { return sr.load(); }
         double getHistorySeconds() const { return historySec.load(); }
+        // Raster-Versatz in Samples (Latenz von Plugins vor Remember). Oberflaeche
+        void setGridShift (int64_t samples);
+        int64_t getGridShift() const { return gridShiftSamples.load(); }
 
         std::atomic<bool> transportPlaying { false };
         std::atomic<bool> hostHasPpq { false };
@@ -109,6 +114,7 @@ namespace RememberDSP
 
         std::atomic<double> sr { 48000.0 };
         std::atomic<double> historySec { 300.0 };
+        std::atomic<int64_t> gridShiftSamples { 0 };
         int channels = 2;
 
         mutable std::mutex m;           // nur Oberflaeche und prepare, nie der Audio-Thread

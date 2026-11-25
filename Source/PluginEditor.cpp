@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "Align.h"
 
 using namespace juce;
 
@@ -108,6 +109,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     RememberExport::bitDepth() = processor.getProp (PropID::bits, "24").getIntValue();
     RememberExport::takeDigits() = jlimit (2, 4, processor.getProp (PropID::takeDigits, "2").getIntValue());
     applyTooltipSetting();
+    syncGridShift();
     saveHistBtn.onClick = [this] { saveHistory(); };
     dragHistBtn.prepareFile = [this] { return prepareHistoryDrag(); };
     saveClipBtn.onClick = [this] { saveClip(); };
@@ -609,6 +611,66 @@ RememberClip::FadeShape RememberEditor::fadeShape() const
     return (RememberClip::FadeShape) jlimit (0, 3, processor.getProp (PropID::fadeShape, "0").getIntValue());
 }
 
+void RememberEditor::syncGridShift()
+{
+    auto& eng = processor.getEngine();
+    const int64_t want = (int64_t) std::llround (processor.getProp (PropID::gridMs, "0").getDoubleValue() * eng.getSampleRate() / 1000.0);
+    if (want != eng.getGridShift()) eng.setGridShift (want);
+}
+
+void RememberEditor::calibrateGrid()
+{
+    auto& eng = processor.getEngine();
+    int64_t s, e;
+    auto st = eng.storage();
+    if (st == nullptr || ! view.getSelection (s, e))
+    {
+        setStatus ("Select 2 or more bars with a steady kick in the history first, then align the grid");
+        return;
+    }
+    const double sr = eng.getSampleRate();
+    std::vector<RememberDSP::Meta> m;
+    st->readMeta (s, e, m);
+    double bpm = 0.0;
+    float bpb = 4.0f;
+    if (! RememberDSP::tempoAt (m, s, bpm, bpb) || bpm < 20.0)
+    {
+        setStatus ("The host sends no tempo for this range, cannot align");
+        return;
+    }
+    std::vector<RememberDSP::GridPoint> g;
+    RememberDSP::gridFromMeta (m, st->writtenNow(), sr, s, e, 1.0, g);
+    const double beatSec = 60.0 / bpm;
+    const int64_t pad = (int64_t) (0.35 * beatSec * sr);
+    const int64_t a = jmax (s - pad, st->oldestValid()), z = jmin (e + pad, st->writtenNow());
+    if (g.size() < 2 || z - a < (int64_t) (0.5 * sr))
+    {
+        setStatus ("The selection is too short. Select 2 or more bars");
+        return;
+    }
+    std::vector<float> l ((size_t) (z - a)), r ((size_t) (z - a));
+    float* dst[2] { l.data(), r.data() };
+    if (! st->copyRange (a, z - a, dst, 2)) { setStatus ("Cannot read this range"); return; }
+    for (size_t i = 0; i < l.size(); ++i) l[i] = 0.5f * (l[i] + r[i]);
+    std::vector<int64_t> beats;
+    for (const auto& p : g) beats.push_back (p.sample - a);
+
+    const auto res = RememberAlign::estimateGridOffset (l, sr, beats, beatSec);
+    if (! res.ok)
+    {
+        setStatus ("No clear beat found. Select a part with a steady kick on the beats (2 or more bars)");
+        return;
+    }
+    const int64_t total = eng.getGridShift() + res.offsetSamples;
+    const double ms = (double) total * 1000.0 / sr;
+    processor.setProp (PropID::gridMs, String (ms, 2));
+    eng.setGridShift (total);
+    view.clearSelection();
+    view.repaint();
+    refreshInfo();
+    setStatus ("Grid aligned, offset " + String (ms, 1) + " ms (" + String (res.hits) + " beats, spread " + String (res.spreadMs, 1) + " ms). Select the bars again");
+}
+
 void RememberEditor::showSettingsMenu()
 {
     static const int lengths[] { 5, 10, 25, 50, 100, 250, 500 };
@@ -632,6 +694,10 @@ void RememberEditor::showSettingsMenu()
     m.addSubMenu ("WAV bit depth", bits);
     m.addSubMenu ("Take number in file name", dig);
     m.addSeparator();
+    m.addSectionHeader ("Timing  (grid offset " + String (processor.getProp (PropID::gridMs, "0").getDoubleValue(), 1) + " ms)");
+    m.addItem (8, "Align grid to selection (steady kick, 2+ bars)", view.hasSelection());
+    m.addItem (9, "Reset grid offset", processor.getProp (PropID::gridMs, "0").getDoubleValue() != 0.0);
+    m.addSeparator();
     m.addSectionHeader ("Editing");
     m.addSubMenu ("Normalize target", nrm);
     m.addSubMenu ("Trim threshold", trm);
@@ -649,6 +715,8 @@ void RememberEditor::showSettingsMenu()
                          else if (r == 2) { p.setProp (PropID::folder, {}); safe->refreshInfo(); safe->setStatus ("Export folder: default"); }
                          else if (r >= 100 && r < 107) { p.setProp (PropID::fadeMs, String (lengths[r - 100])); safe->setStatus ("Fade length " + String (lengths[r - 100]) + " ms"); }
                          else if (r >= 200 && r < 204) { p.setProp (PropID::fadeShape, String (r - 200)); safe->setStatus (String ("Fade shape: ") + shapes[r - 200]); }
+                         else if (r == 8) safe->calibrateGrid();
+                         else if (r == 9) { p.setProp (PropID::gridMs, "0"); safe->syncGridShift(); safe->view.clearSelection(); safe->view.repaint(); safe->setStatus ("Grid offset reset to 0 ms"); }
                          else if (r == 7) { p.setProp (PropID::tooltips, p.getProp (PropID::tooltips, "1") == "0" ? "1" : "0"); safe->applyTooltipSetting(); }
                          else if (r >= 400 && r < 408) { p.setProp (PropID::normMode, String (r - 400)); safe->refreshInfo(); safe->setStatus (String ("Normalize target: ") + normNames[r - 400]); }
                          else if (r >= 500 && r < 506) { p.setProp (PropID::trimDb, String (trims[r - 500])); safe->setStatus ("Trim threshold " + String (trims[r - 500]) + " dB"); }
@@ -772,6 +840,7 @@ void RememberEditor::timerCallback()
     snapBtn.setButtonText ("SNAP  " + snapNames[jlimit (0, 4, getChoice (ParamID::snap))].toUpperCase());
     holdBtn.getProperties().set ("active", hold);
     liveBtn.getProperties().set ("active", view.isLive());
+    syncGridShift();
     const bool overEditor = clipView.isMouseOver (true);
     if (overEditor != hintEditor) { hintEditor = overEditor; repaint (R (0, 696, designW, 30)); }
     const bool sel = view.hasSelection();

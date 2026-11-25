@@ -1,5 +1,7 @@
 // Test der Engine ohne JUCE:  g++ -std=c++17 -O1 -Wall tests/EngineTest.cpp Source/Engine.cpp -o /tmp/enginetest && /tmp/enginetest
+#include "../Source/Align.h"
 #include "../Source/Engine.h"
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 
@@ -53,6 +55,50 @@ int main()
     }
     CHECK (beatsOk);
     CHECK (barsOk);
+
+    // Raster-Versatz: Linien wandern um 3360 Samples (70 ms) nach hinten, ppq <-> Sample bleibt konsistent
+    s->gridShift.store (3360);
+    s->readMeta (0, 480000, m);
+    gridFromMeta (m, s->writtenNow(), sr, 0, 480000, 1.0, g);
+    CHECK (g.size() >= 19 && g[0].sample == 3360 && g[1].sample == 24000 + 3360);
+    int64_t shifted = 0;
+    CHECK (ppqToSample (m, s->writtenNow(), sr, 4.0, shifted) && shifted == 96000 + 3360);
+    s->gridShift.store (0);
+    s->readMeta (0, 480000, m);
+
+    // Ende-zu-Ende: Kicks liegen 70 ms hinter den Beats, Messung -> Raster-Versatz -> Taktlinie liegt auf dem Kick
+    {
+        Engine e2;
+        e2.prepare (sr, 2, 60.0);
+        const int64_t lag = 3360, total = 240000;
+        std::vector<float> a ((size_t) total, 0.0f);
+        for (int k = 0; k < 10; ++k)
+            for (int64_t i = 0; i < 12000; ++i)
+                a[(size_t) (k * 24000 + lag + i)] = 0.8f * (float) (std::sin (2.0 * 3.14159265358979 * 60.0 * (double) i / sr) * std::exp (-(double) i / 3000.0));
+        for (int64_t done = 0; done < total; done += 512)
+        {
+            const int n = (int) std::min<int64_t> (512, total - done);
+            const float* in[2] = { a.data() + done, a.data() + done };
+            HostInfo h;
+            h.playing = true; h.hasPpq = true; h.bpm = 120.0; h.ppq = (double) done / sr * 2.0; h.barStartPpq = 0.0;
+            e2.process (in, 2, n, h);
+        }
+        auto s6 = e2.storage();
+        std::vector<Meta> mm;
+        std::vector<GridPoint> gg;
+        s6->readMeta (24000, 216000, mm);
+        gridFromMeta (mm, s6->writtenNow(), sr, 24000, 216000, 1.0, gg);
+        std::vector<int64_t> bt;
+        for (const auto& p : gg) bt.push_back (p.sample);
+        const auto est = RememberAlign::estimateGridOffset (a, sr, bt, 0.5);
+        CHECK (est.ok && std::llabs (est.offsetSamples - lag) <= 48);
+        e2.setGridShift (est.offsetSamples);
+        s6->readMeta (24000, 216000, mm);
+        gridFromMeta (mm, s6->writtenNow(), sr, 24000, 216000, 1.0, gg);
+        CHECK (gg.size() >= 6 && std::llabs (gg[0].sample - (24000 + lag)) <= 48);
+        const auto est2 = RememberAlign::estimateGridOffset (a, sr, [&] { std::vector<int64_t> b2; for (const auto& p : gg) b2.push_back (p.sample); return b2; }(), 0.5);
+        CHECK (est2.ok && std::llabs (est2.offsetSamples) <= 48);       // danach kein Rest mehr
+    }
 
     gridFromMeta (m, s->writtenNow(), sr, 0, 480000, 0.25, g);   // 1/16
     CHECK (g.size() == 80);

@@ -77,9 +77,12 @@ namespace RememberDSP
         metaWritten.store (i + 1, std::memory_order_release);
     }
 
-    void Storage::readMeta (int64_t s0, int64_t s1, std::vector<Meta>& out) const
+    void Storage::readMeta (int64_t s0, int64_t s1, std::vector<Meta>& out, bool raw) const
     {
         out.clear();
+        const int64_t sh = raw ? 0 : gridShift.load (std::memory_order_relaxed);
+        s0 -= sh;
+        s1 -= sh;
         const int64_t mw = metaWritten.load (std::memory_order_acquire);
         const int64_t first = std::max<int64_t> (0, mw - metaCap + 2);
         // binaere Suche: erster Eintrag mit sample > s0, davon einen zurueck
@@ -94,6 +97,7 @@ namespace RememberDSP
         {
             const Meta& e = meta[(size_t) (i % metaCap)];
             out.push_back (e);
+            out.back().sample += sh;
             if (e.sample >= s1) break;
         }
     }
@@ -207,8 +211,16 @@ namespace RememberDSP
         return current;
     }
 
+    void Engine::setGridShift (int64_t samples)
+    {
+        gridShiftSamples = samples;
+        std::lock_guard<std::mutex> l (m);
+        if (current) current->gridShift.store (samples);
+    }
+
     void Engine::publish (std::shared_ptr<Storage> s)
     {
+        s->gridShift.store (gridShiftSamples.load());
         std::lock_guard<std::mutex> l (m);
         if (current) retired.push_back (current);
         current = std::move (s);
@@ -270,7 +282,7 @@ namespace RememberDSP
                     fresh->pmax[(size_t) (b % (fresh->cap / peakBlock))] = old->pmax[(size_t) (b % (old->cap / peakBlock))];
                 }
                 std::vector<Meta> mm;
-                old->readMeta (from, w, mm);
+                old->readMeta (from, w, mm, true);
                 for (const auto& e : mm) fresh->pushMeta (e);
             }
             fresh->written.store (w, std::memory_order_release);
