@@ -1,5 +1,12 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.1.0
+- **New layout:** one toolbar in working order, all buttons the same size: IMPORT, TO EDITOR, TRIM, FADE IN, FADE OUT, NORMALIZE, REVERSE, FOLD TAIL, UNDO, REDO, CLEAR
+- **Fades:** FADE IN and FADE OUT are separate buttons; right click on either sets the fade length
+- **CLEAR** (was DELETE) empties the editor
+- **File name:** TYPE, FORM and SCALE removed. KEY is one popup with all notes, major and minor. LOOP IN NAME writes "Loop" into the name
+- **Export:** SAVE and DRAG WAV sit in the same columns for the history and the editor; FOLDER chooses the export folder; the big export button is gone
+
 ### v1.0.7
 - **Logo:** own Remember logo (ring buffer with a trail behind the recording head)
 

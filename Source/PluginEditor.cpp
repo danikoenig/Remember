@@ -6,9 +6,7 @@ namespace
 {
     const StringArray historyNames { "1 min", "2 min", "5 min", "10 min", "20 min" };
     const StringArray snapNames { "Off", "1/16", "1/8", "Beat", "Bar" };
-    const StringArray typeNames { "Synth", "Bass", "Drums", "Perc", "Vocal", "Guitar", "Keys", "FX", "Texture", "Mix", "Other" };
-    const StringArray formNames { "Loop", "One-Shot", "Phrase", "Riff", "Hit", "Take" };
-    const StringArray scaleNames { "Major", "Minor" };
+    const StringArray noteNames { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
 }
 
 RememberEditor::RememberEditor (RememberProcessor& p)
@@ -26,12 +24,11 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     view.setHold (processor.apvts.getRawParameterValue (ParamID::hold)->load() > 0.5f);
 
     for (Button* b : std::initializer_list<Button*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &fitBtn, &bar1, &bar2, &bar4, &bar8, &bar16,
-                                                       &typeBtn, &formBtn, &scaleBtn, &folderBtn, &toEditorBtn, &saveHistBtn, &dragHistBtn,
-                                                       &trimBtn, &reverseBtn, &fadeBtn, &normBtn, &deleteBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &importBtn, &saveClipBtn, &dragClipBtn })
+                                                       &keyBtn, &nameLoopBtn, &folderBtn, &toEditorBtn, &saveHistBtn, &dragHistBtn,
+                                                       &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &clearBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &importBtn, &saveClipBtn, &dragClipBtn })
         addAndMakeVisible (b);
     loopBtn.setClickingTogglesState (true);
     addAndMakeVisible (projectEd);
-    addAndMakeVisible (keyEd);
 
     histBtn.setTooltip ("How much audio is kept in memory");
     snapBtn.setTooltip ("Snap for selections. Hold Ctrl / Cmd while dragging to move freely");
@@ -45,9 +42,13 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     toEditorBtn.setTooltip ("Copy the history selection into the editor below");
     trimBtn.setTooltip ("Remove silence at the start and the end (below -60 dB)");
     reverseBtn.setTooltip ("Reverse the selection, or the whole clip");
-    fadeBtn.setTooltip ("Fade in / fade out over the selection. Without a selection the fade length is used. Click to choose");
+    fadeInBtn.setTooltip ("Fade in over the selection (without a selection: over the fade length at the start). Right click: fade length");
+    fadeOutBtn.setTooltip ("Fade out over the selection (without a selection: over the fade length at the end). Right click: fade length");
     normBtn.setTooltip ("Normalize the selection, or the whole clip, to a peak or loudness target");
-    deleteBtn.setTooltip ("Empty the whole editor so you can load something new (Undo brings it back)");
+    clearBtn.setTooltip ("Empty the whole editor so you can load something new (Undo brings it back)");
+    keyBtn.setTooltip ("Key and scale, written into the file name");
+    nameLoopBtn.setTooltip ("On: the word Loop is written into the file name");
+    folderBtn.setTooltip ("Export folder for SAVE");
     undoBtn.setTooltip ("Undo (Ctrl/Cmd+Z)");
     redoBtn.setTooltip ("Redo (Ctrl/Cmd+Shift+Z)");
     playBtn.setTooltip ("Listen to the editor through the plugin output (Space). Starts at the green marker");
@@ -93,27 +94,13 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     barBtn (bar1, 1); barBtn (bar2, 2); barBtn (bar4, 4); barBtn (bar8, 8); barBtn (bar16, 16);
 
     fillTextEditor (projectEd, PropID::project, "Project");
-    fillTextEditor (keyEd, PropID::key, "Key");
-    typeBtn.onClick = [this]
+    keyBtn.onClick = [this] { showKeyMenu(); };
+    nameLoopBtn.setClickingTogglesState (true);
+    nameLoopBtn.setToggleState (processor.getProp (PropID::form, "Loop") != "-", dontSendNotification);
+    nameLoopBtn.onClick = [this]
     {
-        StringArray items { "- none -" };
-        items.addArray (typeNames);
-        const int cur = typeNames.indexOf (processor.getProp (PropID::type)) + 1;
-        showMenu (typeBtn, "Type", items, cur, [this] (int i) { processor.setProp (PropID::type, i == 0 ? String() : typeNames[i - 1]); refreshInfo(); });
-    };
-    formBtn.onClick = [this]
-    {
-        StringArray items { "- none -" };
-        items.addArray (formNames);
-        const int cur = formNames.indexOf (processor.getProp (PropID::form, "Loop")) + 1;
-        showMenu (formBtn, "Form", items, cur, [this] (int i) { processor.setProp (PropID::form, i == 0 ? String ("-") : formNames[i - 1]); refreshInfo(); });
-    };
-    scaleBtn.onClick = [this]
-    {
-        StringArray items { "- none -" };
-        items.addArray (scaleNames);
-        const int cur = scaleNames.indexOf (processor.getProp (PropID::scale)) + 1;
-        showMenu (scaleBtn, "Scale", items, cur, [this] (int i) { processor.setProp (PropID::scale, i == 0 ? String() : scaleNames[i - 1]); refreshInfo(); });
+        processor.setProp (PropID::form, nameLoopBtn.getToggleState() ? String ("Loop") : String ("-"));
+        refreshInfo();
     };
     folderBtn.onClick = [this] { chooseFolder(); };
     saveHistBtn.onClick = [this] { saveHistory(); };
@@ -124,25 +111,17 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     toEditorBtn.onClick = [this] { toEditor(); };
     trimBtn.onClick = [this] { doTrim(); };
     reverseBtn.onClick = [this] { doReverse(); };
-    fadeBtn.onClick = [this]
-    {
-        static const int steps[] { 5, 10, 25, 50, 100, 250, 500 };
-        StringArray items { "Fade in", "Fade out" };
-        for (int v : steps) items.add ("Length  " + String (v) + " ms");
-        showMenu (fadeBtn, "Fade", items, -1, [this] (int i)
-        {
-            if (i == 0) doFade (true);
-            else if (i == 1) doFade (false);
-            else fadeMs = steps[i - 2];
-        });
-    };
+    fadeInBtn.onClick = [this] { doFade (true); };
+    fadeOutBtn.onClick = [this] { doFade (false); };
+    fadeInBtn.onRightClick = [this] { showFadeMenu (fadeInBtn); };
+    fadeOutBtn.onRightClick = [this] { showFadeMenu (fadeOutBtn); };
     clipView.onContext = [this] { showClipMenu(); };
     normBtn.onClick = [this]
     {
         showMenu (normBtn, "Normalize to", { "Peak -0.1 dB", "Peak -1 dB", "-14 LUFS", "-16 LUFS", "-18 LUFS", "-23 LUFS" }, -1,
                   [this] (int i) { doNormalize (i); });
     };
-    deleteBtn.onClick = [this] { doClear(); };
+    clearBtn.onClick = [this] { doClear(); };
     undoBtn.onClick = [this] { doUndo(); };
     redoBtn.onClick = [this] { doRedo(); };
     playBtn.onClick = [this] { doPlay(); };
@@ -248,7 +227,6 @@ RememberExport::ClipMeta RememberEditor::currentMeta (double bpm) const
 {
     RememberExport::ClipMeta m;
     m.project = processor.getProp (PropID::project);
-    m.type = processor.getProp (PropID::type);
     const auto form = processor.getProp (PropID::form, "Loop");
     m.form = form == "-" ? String() : form;
     m.key = processor.getProp (PropID::key);
@@ -277,13 +255,11 @@ void RememberEditor::refreshInfo()
     s << String::fromUTF8 ("   \xc2\xb7   ") << "TAKE " << String (take).paddedLeft ('0', 2);
     infoText = s;
 
-    typeBtn.setButtonText ("TYPE  " + (processor.getProp (PropID::type).isEmpty() ? String ("-") : processor.getProp (PropID::type).toUpperCase()));
-    const auto form = processor.getProp (PropID::form, "Loop");
-    formBtn.setButtonText ("FORM  " + (form == "-" ? String ("-") : form.toUpperCase()));
-    scaleBtn.setButtonText ("SCALE  " + (processor.getProp (PropID::scale).isEmpty() ? String ("-") : processor.getProp (PropID::scale).toUpperCase()));
-    folderBtn.setButtonText ("EXPORT TO  " + currentFolder().getFileName().toUpperCase());
-    folderBtn.setTooltip (currentFolder().getFullPathName());
-    repaint (R (440, 734, 250, 44));
+    const auto key = processor.getProp (PropID::key), scale = processor.getProp (PropID::scale);
+    keyBtn.setButtonText (key.isEmpty() ? String ("KEY  -") : "KEY  " + key.toUpperCase() + (scale == "Minor" ? " MINOR" : scale == "Major" ? " MAJOR" : ""));
+    nameLoopBtn.getProperties().set ("active", nameLoopBtn.getToggleState());
+    folderBtn.setTooltip ("Export folder: " + currentFolder().getFullPathName() + "  (click to change)");
+    repaint (R (16, 352, 520, 36));
 }
 
 void RememberEditor::saveHistory()
@@ -607,6 +583,45 @@ void RememberEditor::importFile (const File& f)
     setStatus ("Imported  " + f.getFileName() + (bpm > 1.0 ? "  (grid from the host tempo, bar 1 = file start)" : ""));
 }
 
+void RememberEditor::showFadeMenu (Component& target)
+{
+    static const int steps[] { 5, 10, 25, 50, 100, 250, 500 };
+    StringArray items;
+    int cur = -1;
+    for (int i = 0; i < 7; ++i) { items.add (String (steps[i]) + " ms"); if (steps[i] == fadeMs) cur = i; }
+    showMenu (target, "Fade length", items, cur, [this] (int i)
+    {
+        fadeMs = steps[i];
+        setStatus ("Fade length " + String (fadeMs) + " ms");
+    });
+}
+
+void RememberEditor::showKeyMenu()
+{
+    const auto key = processor.getProp (PropID::key), scale = processor.getProp (PropID::scale);
+    PopupMenu m;
+    m.addSectionHeader ("Key");
+    m.addItem (1000, "- none -", true, key.isEmpty());
+    for (int i = 0; i < 12; ++i)
+    {
+        m.addItem (1 + i, noteNames[i], true, key == noteNames[i] && scale != "Minor");
+        m.addItem (101 + i, noteNames[i] + " minor", true, key == noteNames[i] && scale == "Minor");
+    }
+    m.showMenuAsync (PopupMenu::Options().withTargetComponent (&keyBtn).withMinimumWidth (jmax (140, keyBtn.getWidth())),
+                     [safe = SafePointer<RememberEditor> (this)] (int r)
+                     {
+                         if (safe == nullptr || r <= 0) return;
+                         if (r == 1000) { safe->processor.setProp (PropID::key, {}); safe->processor.setProp (PropID::scale, {}); }
+                         else
+                         {
+                             const bool minor = r > 100;
+                             safe->processor.setProp (PropID::key, noteNames[(r - 1) % 100]);
+                             safe->processor.setProp (PropID::scale, minor ? "Minor" : "Major");
+                         }
+                         safe->refreshInfo();
+                     });
+}
+
 void RememberEditor::showClipMenu()
 {
     const bool sel = clipView.hasSelection(), paste = ! S().clipboard.empty();
@@ -704,7 +719,7 @@ void RememberEditor::timerCallback()
     dragHistBtn.setEnabled (sel);
     toEditorBtn.setEnabled (sel);
     toEditorBtn.getProperties().set ("active", sel);
-        for (auto* b : { &trimBtn, &reverseBtn, &fadeBtn, &normBtn, &deleteBtn, &playBtn, &loopBtn }) b->setEnabled (clip);
+        for (Button* b : std::initializer_list<Button*> { &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &clearBtn, &playBtn, &loopBtn }) b->setEnabled (clip);
     wrapBtn.setEnabled (csel);
     undoBtn.setEnabled (S().canUndo());
     redoBtn.setEnabled (S().canRedo());
@@ -714,12 +729,11 @@ void RememberEditor::timerCallback()
     playBtn.setButtonText (playing ? "STOP" : "PLAY");
     playBtn.getProperties().set ("active", playing);
     loopBtn.getProperties().set ("active", loopBtn.getToggleState());
-    fadeBtn.setButtonText ("FADE  " + String (fadeMs) + " ms");
     for (Component* b : std::initializer_list<Component*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &saveHistBtn, &dragHistBtn, &toEditorBtn,
-                                                            &trimBtn, &reverseBtn, &fadeBtn, &normBtn, &deleteBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &importBtn, &saveClipBtn, &dragClipBtn }) b->repaint();
+                                                            &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &clearBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &importBtn, &saveClipBtn, &dragClipBtn, &keyBtn, &nameLoopBtn }) b->repaint();
 
     if (++infoTick % 8 == 0) refreshInfo();
-    if (statusTicks > 0 && --statusTicks == 0) repaint (R (0, 780, designW, 30));
+    if (statusTicks > 0 && --statusTicks == 0) repaint (R (0, 736, designW, 30));
 }
 
 Rectangle<int> RememberEditor::R (float x, float y, float w, float h) const
@@ -742,36 +756,31 @@ void RememberEditor::resized()
     bar16.setBounds (R (824, 80, 52, 40));
     fitBtn.setBounds (R (892, 80, 72, 40));
 
-    view.setBounds (R (16, 130, 948, 220));
-    toEditorBtn.setBounds (R (16, 358, 150, 34));
-    saveHistBtn.setBounds (R (700, 358, 120, 34));
-    dragHistBtn.setBounds (R (828, 358, 136, 34));
+    // Spalten rechts (SAVE / DRAG WAV / FOLDER) liegen in allen Zeilen uebereinander
+    view.setBounds (R (16, 130, 948, 214));
+    saveHistBtn.setBounds (R (700, 352, 120, 36));
+    dragHistBtn.setBounds (R (828, 352, 136, 36));
 
     {
+        // Eine Zeile, alle Knoepfe gleich gross, in Arbeitsreihenfolge
+        Button* order[] { &importBtn, &toEditorBtn, &trimBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &reverseBtn, &wrapBtn, &undoBtn, &redoBtn, &clearBtn };
+        const float gap = 6.0f, w = (948.0f - gap * 10.0f) / 11.0f;
         float x = 16.0f;
-        auto put = [&] (Button& b, float w) { b.setBounds (R (x, 404, w, 34)); x += w + 6.0f; };
-        put (trimBtn, 70); put (reverseBtn, 90); put (fadeBtn, 120); put (normBtn, 120);
-        put (wrapBtn, 96); put (importBtn, 80); put (deleteBtn, 80);
-        x = 964.0f - 56.0f * 2 - 6.0f;
-        put (undoBtn, 56); put (redoBtn, 56);
+        for (auto* b : order) { b->setBounds (R (x, 396, w, 36)); x += w + gap; }
     }
-    clipView.setBounds (R (16, 446, 948, 190));
-    playBtn.setBounds (R (16, 644, 100, 36));
-    loopBtn.setBounds (R (124, 644, 80, 36));
-    saveClipBtn.setBounds (R (700, 644, 120, 36));
-    dragClipBtn.setBounds (R (828, 644, 136, 36));
+    clipView.setBounds (R (16, 440, 948, 200));
+    playBtn.setBounds (R (16, 648, 100, 36));
+    loopBtn.setBounds (R (124, 648, 80, 36));
+    saveClipBtn.setBounds (R (700, 648, 120, 36));
+    dragClipBtn.setBounds (R (828, 648, 136, 36));
 
-    projectEd.setBounds (R (16, 690, 250, 34));
-    typeBtn.setBounds (R (274, 690, 150, 34));
-    formBtn.setBounds (R (432, 690, 150, 34));
-    keyEd.setBounds (R (590, 690, 90, 34));
-    scaleBtn.setBounds (R (688, 690, 120, 34));
-
-    folderBtn.setBounds (R (16, 734, 410, 44));
+    projectEd.setBounds (R (16, 692, 300, 36));
+    keyBtn.setBounds (R (324, 692, 170, 36));
+    nameLoopBtn.setBounds (R (502, 692, 150, 36));
+    folderBtn.setBounds (R (828, 692, 136, 36));
 
     const auto f = Font (rememberFont (14.0f * scale));
     projectEd.setFont (f);
-    keyEd.setFont (f);
 }
 
 void RememberEditor::paint (Graphics& g)
@@ -819,30 +828,30 @@ void RememberEditor::paint (Graphics& g)
     if (dropping)
     {
         g.setColour (T.accent.withAlpha (0.12f));
-        g.fillRoundedRectangle (R (16, 446, 948, 190).toFloat(), T.radius);
+        g.fillRoundedRectangle (R (16, 440, 948, 200).toFloat(), T.radius);
         g.setColour (T.accent);
         g.setFont (Font (rememberFont (16.0f * scale, true)));
-        g.drawText ("Drop to load into the editor", R (16, 446, 948, 190), Justification::centred);
+        g.drawText ("Drop to load into the editor", R (16, 440, 948, 200), Justification::centred);
     }
 
     // Info rechts neben dem Ordner
     g.setColour (T.text);
     g.setFont (Font (rememberFont (13.0f * scale, true)));
-    g.drawText (infoText, R (444, 734, 250, 44), Justification::centred);
+    g.drawText (infoText, R (16, 352, 520, 36), Justification::centredLeft);
 
     // Statuszeile
     if (statusTicks > 0)
     {
         g.setColour (T.accent);
         g.setFont (Font (rememberFont (12.5f * scale)));
-        g.drawText (statusText, R (16, 786, 948, 22), Justification::centredLeft, true);
+        g.drawText (statusText, R (16, 740, 948, 22), Justification::centredLeft, true);
     }
     else
     {
         g.setColour (T.textDim.withAlpha (0.8f));
         g.setFont (Font (rememberFont (11.5f * scale)));
         g.drawText (String::fromUTF8 ("Click = start point   \xc2\xb7   drag = select   \xc2\xb7   double-click = bar   \xc2\xb7   wheel = zoom   \xc2\xb7   right click = copy, cut, paste   \xc2\xb7   Esc = clear"),
-                    R (16, 786, 948, 22), Justification::centredLeft, true);
+                    R (16, 740, 948, 22), Justification::centredLeft, true);
     }
 }
 

@@ -28,6 +28,24 @@ private:
     bool started = false;
 };
 
+// Button, der auf Rechtsklick ein eigenes Menue oeffnet (Linksklick wie ueblich)
+class RightClickButton : public juce::TextButton
+{
+public:
+    using TextButton::TextButton;
+    std::function<void()> onRightClick;
+    void mouseDown (const juce::MouseEvent& e) override
+    {
+        if (e.mods.isPopupMenu()) { if (onRightClick) onRightClick(); return; }
+        TextButton::mouseDown (e);
+    }
+    void mouseUp (const juce::MouseEvent& e) override
+    {
+        if (e.mods.isPopupMenu()) return;
+        TextButton::mouseUp (e);
+    }
+};
+
 class RememberEditor : public juce::AudioProcessorEditor, public juce::FileDragAndDropTarget, private juce::Timer
 {
 public:
@@ -85,11 +103,13 @@ private:
     void importFile (const juce::File&);
     void chooseImport();
     void showClipMenu();
+    void showFadeMenu (juce::Component& target);
+    void showKeyMenu();
     void doClear();
     void doPlay();
     bool handleKey (const juce::KeyPress&);
 
-    static constexpr float designW = 980.0f, designH = 818.0f;
+    static constexpr float designW = 980.0f, designH = 772.0f;
     float frameWidth() const noexcept { return 4.0f * scale; }
 
     RememberProcessor& processor;
@@ -105,14 +125,15 @@ private:
     DragButton dragHistBtn { "DRAG WAV" };
 
     // Editor
-    juce::TextButton trimBtn { "TRIM" }, reverseBtn { "REVERSE" }, fadeBtn, normBtn { "NORMALIZE" }, deleteBtn { "DELETE" }, undoBtn { "UNDO" }, redoBtn { "REDO" };
+    juce::TextButton trimBtn { "TRIM" }, reverseBtn { "REVERSE" }, normBtn { "NORMALIZE" }, clearBtn { "CLEAR" }, undoBtn { "UNDO" }, redoBtn { "REDO" };
+    RightClickButton fadeInBtn { "FADE IN" }, fadeOutBtn { "FADE OUT" };
     juce::TextButton playBtn { "PLAY" }, loopBtn { "LOOP" }, wrapBtn { "FOLD TAIL" }, importBtn { "IMPORT" };
     juce::TextButton saveClipBtn { "SAVE" };
     DragButton dragClipBtn { "DRAG WAV" };
 
     // Metadaten und Ordner
-    juce::TextEditor projectEd, keyEd;
-    juce::TextButton typeBtn, formBtn, scaleBtn, folderBtn;
+    juce::TextEditor projectEd;
+    juce::TextButton keyBtn, nameLoopBtn { "LOOP IN NAME" }, folderBtn { "FOLDER" };
 
     juce::TooltipWindow tooltip { this, 700 };
     std::unique_ptr<juce::FileChooser> chooser;

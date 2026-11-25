@@ -67,7 +67,7 @@ int main (int argc, char** argv)
     }
 
     std::unique_ptr<AudioProcessorEditor> ed (proc.createEditor());
-    ed->setSize (980, 818);
+    ed->setSize (980, 772);
     MessageManager::getInstance()->runDispatchLoopUntil (300);
 
     // Button "bars" druecken: letzte vollstaendige Takte (ohne Startpunkt)
