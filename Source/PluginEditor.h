@@ -28,21 +28,19 @@ private:
     bool started = false;
 };
 
-// Button, der auf Rechtsklick ein eigenes Menue oeffnet (Linksklick wie ueblich)
-class RightClickButton : public juce::TextButton
+// Menue-Symbol (drei Balken) oben rechts
+class MenuButton : public juce::TextButton
 {
 public:
-    using TextButton::TextButton;
-    std::function<void()> onRightClick;
-    void mouseDown (const juce::MouseEvent& e) override
+    MenuButton() : TextButton ("") {}
+    void paintButton (juce::Graphics& g, bool over, bool down) override
     {
-        if (e.mods.isPopupMenu()) { if (onRightClick) onRightClick(); return; }
-        TextButton::mouseDown (e);
-    }
-    void mouseUp (const juce::MouseEvent& e) override
-    {
-        if (e.mods.isPopupMenu()) return;
-        TextButton::mouseUp (e);
+        TextButton::paintButton (g, over, down);
+        const auto b = getLocalBounds().toFloat().reduced (getWidth() * 0.28f, getHeight() * 0.27f);
+        g.setColour (juce::Colour (0xffeceef2).withAlpha (over ? 1.0f : 0.8f));
+        const float h = juce::jmax (2.0f, b.getHeight() * 0.16f);
+        for (int i = 0; i < 3; ++i)
+            g.fillRoundedRectangle (b.getX(), b.getY() + i * (b.getHeight() - h) * 0.5f, b.getWidth(), h, h * 0.5f);
     }
 };
 
@@ -103,7 +101,9 @@ private:
     void importFile (const juce::File&);
     void chooseImport();
     void showClipMenu();
-    void showFadeMenu (juce::Component& target);
+    void showSettingsMenu();
+    int fadeLengthMs() const;
+    RememberClip::FadeShape fadeShape() const;
     void showKeyMenu();
     void doClear();
     void doPlay();
@@ -126,20 +126,20 @@ private:
 
     // Editor
     juce::TextButton trimBtn { "TRIM" }, reverseBtn { "REVERSE" }, normBtn { "NORMALIZE" }, clearBtn { "CLEAR" }, undoBtn { "UNDO" }, redoBtn { "REDO" };
-    RightClickButton fadeInBtn { "FADE IN" }, fadeOutBtn { "FADE OUT" };
+    juce::TextButton fadeInBtn { "FADE IN" }, fadeOutBtn { "FADE OUT" };
+    MenuButton menuBtn;
     juce::TextButton playBtn { "PLAY" }, loopBtn { "LOOP" }, wrapBtn { "FOLD TAIL" }, importBtn { "IMPORT" };
     juce::TextButton saveClipBtn { "SAVE" };
     DragButton dragClipBtn { "DRAG WAV" };
 
     // Metadaten und Ordner
     juce::TextEditor projectEd;
-    juce::TextButton keyBtn, nameLoopBtn { "LOOP IN NAME" }, folderBtn { "FOLDER" };
+    juce::TextButton keyBtn, nameLoopBtn { "LOOP IN NAME" };
 
     juce::TooltipWindow tooltip { this, 700 };
     std::unique_ptr<juce::FileChooser> chooser;
     juce::String infoText, statusText;
     int statusTicks = 0, infoTick = 0;
-    int fadeMs = 25;
     bool dropping = false;
     float scale = 1.0f;
 

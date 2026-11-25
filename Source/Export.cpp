@@ -48,6 +48,8 @@ namespace RememberExport
         return best + 1;
     }
 
+    int& bitDepth() { static int b = 24; return b; }
+
     File defaultFolder()
     {
         return File::getSpecialLocation (File::userMusicDirectory).getChildFile ("Remember");
@@ -64,7 +66,7 @@ namespace RememberExport
         stream->truncate();
 
         WavAudioFormat wav;
-        std::unique_ptr<AudioFormatWriter> writer (wav.createWriterFor (stream.get(), sampleRate, (unsigned) st.numCh, 24, {}, 0));
+        std::unique_ptr<AudioFormatWriter> writer (wav.createWriterFor (stream.get(), sampleRate, (unsigned) st.numCh, (int) bitDepth(), {}, 0));
         if (writer == nullptr) return "Cannot create WAV writer";
         stream.release();   // gehoert jetzt dem Writer
 
@@ -104,7 +106,7 @@ namespace RememberExport
         stream->truncate();
 
         WavAudioFormat wav;
-        std::unique_ptr<AudioFormatWriter> writer (wav.createWriterFor (stream.get(), clip.sampleRate, (unsigned) clip.numChannels(), 24, {}, 0));
+        std::unique_ptr<AudioFormatWriter> writer (wav.createWriterFor (stream.get(), clip.sampleRate, (unsigned) clip.numChannels(), (int) bitDepth(), {}, 0));
         if (writer == nullptr) return "Cannot create WAV writer";
         stream.release();
 

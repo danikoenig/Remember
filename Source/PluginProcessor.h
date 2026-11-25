@@ -19,6 +19,9 @@ namespace PropID
     inline constexpr const char* form    = "form";
     inline constexpr const char* key     = "key";
     inline constexpr const char* scale   = "scale";
+    inline constexpr const char* fadeMs  = "fadeMs";
+    inline constexpr const char* fadeShape = "fadeShape";   // 0 Smooth, 1 Linear, 2 Equal power, 3 Exponential
+    inline constexpr const char* bits    = "bits";
 }
 
 class RememberProcessor : public juce::AudioProcessor,

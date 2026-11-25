@@ -24,7 +24,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     view.setHold (processor.apvts.getRawParameterValue (ParamID::hold)->load() > 0.5f);
 
     for (Button* b : std::initializer_list<Button*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &fitBtn, &bar1, &bar2, &bar4, &bar8, &bar16,
-                                                       &keyBtn, &nameLoopBtn, &folderBtn, &toEditorBtn, &saveHistBtn, &dragHistBtn,
+                                                       &keyBtn, &nameLoopBtn, &menuBtn, &toEditorBtn, &saveHistBtn, &dragHistBtn,
                                                        &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &clearBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &importBtn, &saveClipBtn, &dragClipBtn })
         addAndMakeVisible (b);
     loopBtn.setClickingTogglesState (true);
@@ -42,13 +42,13 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     toEditorBtn.setTooltip ("Copy the history selection into the editor below");
     trimBtn.setTooltip ("Remove silence at the start and the end (below -60 dB)");
     reverseBtn.setTooltip ("Reverse the selection, or the whole clip");
-    fadeInBtn.setTooltip ("Fade in over the selection (without a selection: over the fade length at the start). Right click: fade length");
-    fadeOutBtn.setTooltip ("Fade out over the selection (without a selection: over the fade length at the end). Right click: fade length");
+    fadeInBtn.setTooltip ("Fade in over the selection (without a selection: over the fade length at the start). Length and shape: menu top right");
+    fadeOutBtn.setTooltip ("Fade out over the selection (without a selection: over the fade length at the end). Length and shape: menu top right");
+    menuBtn.setTooltip ("Settings: export folder, fade length and shape, bit depth");
     normBtn.setTooltip ("Normalize the selection, or the whole clip, to a peak or loudness target");
     clearBtn.setTooltip ("Empty the whole editor so you can load something new (Undo brings it back)");
     keyBtn.setTooltip ("Key and scale, written into the file name");
     nameLoopBtn.setTooltip ("On: the word Loop is written into the file name");
-    folderBtn.setTooltip ("Export folder for SAVE");
     undoBtn.setTooltip ("Undo (Ctrl/Cmd+Z)");
     redoBtn.setTooltip ("Redo (Ctrl/Cmd+Shift+Z)");
     playBtn.setTooltip ("Listen to the editor through the plugin output (Space). Starts at the green marker");
@@ -102,7 +102,8 @@ RememberEditor::RememberEditor (RememberProcessor& p)
         processor.setProp (PropID::form, nameLoopBtn.getToggleState() ? String ("Loop") : String ("-"));
         refreshInfo();
     };
-    folderBtn.onClick = [this] { chooseFolder(); };
+    menuBtn.onClick = [this] { showSettingsMenu(); };
+    RememberExport::bitDepth() = processor.getProp (PropID::bits, "24").getIntValue();
     saveHistBtn.onClick = [this] { saveHistory(); };
     dragHistBtn.prepareFile = [this] { return prepareHistoryDrag(); };
     saveClipBtn.onClick = [this] { saveClip(); };
@@ -113,8 +114,6 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     reverseBtn.onClick = [this] { doReverse(); };
     fadeInBtn.onClick = [this] { doFade (true); };
     fadeOutBtn.onClick = [this] { doFade (false); };
-    fadeInBtn.onRightClick = [this] { showFadeMenu (fadeInBtn); };
-    fadeOutBtn.onRightClick = [this] { showFadeMenu (fadeOutBtn); };
     clipView.onContext = [this] { showClipMenu(); };
     normBtn.onClick = [this]
     {
@@ -258,7 +257,7 @@ void RememberEditor::refreshInfo()
     const auto key = processor.getProp (PropID::key), scale = processor.getProp (PropID::scale);
     keyBtn.setButtonText (key.isEmpty() ? String ("KEY  -") : "KEY  " + key.toUpperCase() + (scale == "Minor" ? " MINOR" : scale == "Major" ? " MAJOR" : ""));
     nameLoopBtn.getProperties().set ("active", nameLoopBtn.getToggleState());
-    folderBtn.setTooltip ("Export folder: " + currentFolder().getFullPathName() + "  (click to change)");
+    menuBtn.setTooltip ("Settings. Export folder: " + currentFolder().getFullPathName());
     repaint (R (16, 352, 520, 36));
 }
 
@@ -459,11 +458,11 @@ void RememberEditor::doFade (bool in)
     RememberClip::Range r;
     if (! clipView.getSelection (r))
     {
-        const int64_t n = jmin (S().clip.length(), (int64_t) std::llround (S().clip.sampleRate * fadeMs / 1000.0));
+        const int64_t n = jmin (S().clip.length(), (int64_t) std::llround (S().clip.sampleRate * fadeLengthMs() / 1000.0));
         r = in ? RememberClip::Range { 0, n } : RememberClip::Range { S().clip.length() - n, S().clip.length() };
     }
     S().beginEdit();
-    if (in) RememberClip::fadeIn (S().clip, r); else RememberClip::fadeOut (S().clip, r);
+    if (in) RememberClip::fadeIn (S().clip, r, fadeShape()); else RememberClip::fadeOut (S().clip, r, fadeShape());
     afterEdit();
 }
 
@@ -583,17 +582,47 @@ void RememberEditor::importFile (const File& f)
     setStatus ("Imported  " + f.getFileName() + (bpm > 1.0 ? "  (grid from the host tempo, bar 1 = file start)" : ""));
 }
 
-void RememberEditor::showFadeMenu (Component& target)
+int RememberEditor::fadeLengthMs() const
 {
-    static const int steps[] { 5, 10, 25, 50, 100, 250, 500 };
-    StringArray items;
-    int cur = -1;
-    for (int i = 0; i < 7; ++i) { items.add (String (steps[i]) + " ms"); if (steps[i] == fadeMs) cur = i; }
-    showMenu (target, "Fade length", items, cur, [this] (int i)
-    {
-        fadeMs = steps[i];
-        setStatus ("Fade length " + String (fadeMs) + " ms");
-    });
+    return jlimit (1, 5000, processor.getProp (PropID::fadeMs, "25").getIntValue());
+}
+
+RememberClip::FadeShape RememberEditor::fadeShape() const
+{
+    return (RememberClip::FadeShape) jlimit (0, 3, processor.getProp (PropID::fadeShape, "0").getIntValue());
+}
+
+void RememberEditor::showSettingsMenu()
+{
+    static const int lengths[] { 5, 10, 25, 50, 100, 250, 500 };
+    static const char* shapes[] { "Smooth (S-curve)", "Linear", "Equal power", "Exponential" };
+    static const int depths[] { 16, 24, 32 };
+
+    PopupMenu m, len, shp, bits;
+    for (int i = 0; i < 7; ++i) len.addItem (100 + i, String (lengths[i]) + " ms", true, lengths[i] == fadeLengthMs());
+    for (int i = 0; i < 4; ++i) shp.addItem (200 + i, shapes[i], true, i == (int) fadeShape());
+    for (int i = 0; i < 3; ++i) bits.addItem (300 + i, String (depths[i]) + (depths[i] == 32 ? " bit float" : " bit"), true, depths[i] == RememberExport::bitDepth());
+
+    m.addSectionHeader ("Export");
+    m.addItem (1, "Export folder...  " + currentFolder().getFileName());
+    m.addItem (2, "Reset folder to default", processor.getProp (PropID::folder).isNotEmpty());
+    m.addSubMenu ("WAV bit depth", bits);
+    m.addSeparator();
+    m.addSectionHeader ("Fades");
+    m.addSubMenu ("Fade length", len);
+    m.addSubMenu ("Fade shape", shp);
+
+    m.showMenuAsync (PopupMenu::Options().withTargetComponent (&menuBtn).withMinimumWidth (240),
+                     [safe = SafePointer<RememberEditor> (this)] (int r)
+                     {
+                         if (safe == nullptr || r <= 0) return;
+                         auto& p = safe->processor;
+                         if (r == 1) safe->chooseFolder();
+                         else if (r == 2) { p.setProp (PropID::folder, {}); safe->refreshInfo(); safe->setStatus ("Export folder: default"); }
+                         else if (r >= 100 && r < 107) { p.setProp (PropID::fadeMs, String (lengths[r - 100])); safe->setStatus ("Fade length " + String (lengths[r - 100]) + " ms"); }
+                         else if (r >= 200 && r < 204) { p.setProp (PropID::fadeShape, String (r - 200)); safe->setStatus (String ("Fade shape: ") + shapes[r - 200]); }
+                         else if (r >= 300 && r < 303) { RememberExport::bitDepth() = depths[r - 300]; p.setProp (PropID::bits, String (depths[r - 300])); safe->setStatus ("WAV bit depth " + String (depths[r - 300])); }
+                     });
 }
 
 void RememberEditor::showKeyMenu()
@@ -777,7 +806,7 @@ void RememberEditor::resized()
     projectEd.setBounds (R (16, 692, 300, 36));
     keyBtn.setBounds (R (324, 692, 170, 36));
     nameLoopBtn.setBounds (R (502, 692, 150, 36));
-    folderBtn.setBounds (R (828, 692, 136, 36));
+    menuBtn.setBounds (R (916, 14, 48, 40));
 
     const auto f = Font (rememberFont (14.0f * scale));
     projectEd.setFont (f);

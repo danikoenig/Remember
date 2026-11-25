@@ -1,5 +1,9 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.1.1
+- **Settings menu** (three bars, top right): export folder (choose / reset), WAV bit depth (16 / 24 / 32 float), fade length, fade shape (smooth, linear, equal power, exponential)
+- FADE IN / FADE OUT now simply use these settings, no pop-up on the buttons; FOLDER button removed from the main window
+
 ### v1.1.0
 - **New layout:** one toolbar in working order, all buttons the same size: IMPORT, TO EDITOR, TRIM, FADE IN, FADE OUT, NORMALIZE, REVERSE, FOLD TAIL, UNDO, REDO, CLEAR
 - **Fades:** FADE IN and FADE OUT are separate buttons; right click on either sets the fade length

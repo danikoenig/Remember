@@ -39,8 +39,9 @@ namespace RememberClip
     void insert (Clip&, int64_t pos, const Channels& data);           // einfuegen
     void reverse (Clip&, Range r);
     void applyGain (Clip&, Range r, float linear);
-    void fadeIn (Clip&, Range r);                                     // 0 -> 1 ueber den Bereich
-    void fadeOut (Clip&, Range r);                                    // 1 -> 0 ueber den Bereich
+    enum class FadeShape { Smooth, Linear, EqualPower, Exponential };
+    void fadeIn (Clip&, Range r, FadeShape = FadeShape::Smooth);                                     // 0 -> 1 ueber den Bereich
+    void fadeOut (Clip&, Range r, FadeShape = FadeShape::Smooth);                                    // 1 -> 0 ueber den Bereich
     Range findNonSilent (const Clip&, float thresholdDb);             // leer, wenn alles still ist
     void trimSilence (Clip&, float thresholdDb);                      // Stille vorne und hinten entfernen
 

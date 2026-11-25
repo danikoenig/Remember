@@ -69,27 +69,35 @@ namespace RememberClip
             for (int64_t i = r.a; i < r.b; ++i) v[(size_t) i] *= g;
     }
 
-    static float fadeCurve (double t)   // 0..1, weich (Kosinus)
+    static float fadeCurve (double t, FadeShape shape)   // 0..1
     {
-        return (float) (0.5 - 0.5 * std::cos (3.14159265358979323846 * std::min (1.0, std::max (0.0, t))));
+        t = std::min (1.0, std::max (0.0, t));
+        const double pi = 3.14159265358979323846;
+        switch (shape)
+        {
+            case FadeShape::Linear:     return (float) t;
+            case FadeShape::EqualPower: return (float) std::sin (0.5 * pi * t);
+            case FadeShape::Exponential:return (float) (t * t * t);
+            default:                    return (float) (0.5 - 0.5 * std::cos (pi * t));
+        }
     }
 
-    void fadeIn (Clip& c, Range r)
+    void fadeIn (Clip& c, Range r, FadeShape shape)
     {
         r = clampRange (c, r);
         const int64_t n = r.length();
         if (n < 2) return;
         for (auto& v : c.ch)
-            for (int64_t i = 0; i < n; ++i) v[(size_t) (r.a + i)] *= fadeCurve ((double) i / (double) (n - 1));
+            for (int64_t i = 0; i < n; ++i) v[(size_t) (r.a + i)] *= fadeCurve ((double) i / (double) (n - 1), shape);
     }
 
-    void fadeOut (Clip& c, Range r)
+    void fadeOut (Clip& c, Range r, FadeShape shape)
     {
         r = clampRange (c, r);
         const int64_t n = r.length();
         if (n < 2) return;
         for (auto& v : c.ch)
-            for (int64_t i = 0; i < n; ++i) v[(size_t) (r.a + i)] *= fadeCurve (1.0 - (double) i / (double) (n - 1));
+            for (int64_t i = 0; i < n; ++i) v[(size_t) (r.a + i)] *= fadeCurve (1.0 - (double) i / (double) (n - 1), shape);
     }
 
     Range findNonSilent (const Clip& c, float thresholdDb)

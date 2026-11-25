@@ -20,8 +20,11 @@ namespace RememberExport
     juce::String fileName (const juce::String& stem, int take);
     juce::File defaultFolder();
 
-    // Schreibt [start, start+len) als 24-Bit-WAV. Leerer String = ok, sonst Fehlertext
+    // Bittiefe fuer den Export: 16, 24 oder 32 (Float). Standard 24
+    int& bitDepth();
+
+    // Schreibt [start, start+len) als WAV (bitDepth()). Leerer String = ok, sonst Fehlertext
     juce::String writeWav (const RememberDSP::Storage&, int64_t start, int64_t len, double sampleRate, const juce::File& file);
-    // Schreibt den bearbeiteten Editor-Clip (mit allen Aenderungen) als 24-Bit-WAV
+    // Schreibt den bearbeiteten Editor-Clip (mit allen Aenderungen) als WAV (bitDepth())
     juce::String writeClipWav (const RememberClip::Clip&, const juce::File& file);
 }
