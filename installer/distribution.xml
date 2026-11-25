@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Remember</title>
+    <welcome file="welcome.txt" mime-type="text/plain"/>
+    <conclusion file="conclusion.txt" mime-type="text/plain"/>
+    <options customize="never" require-scripts="false" hostArchitectures="arm64"/>
+    <domains enable_localSystem="true" enable_currentUserHome="false" enable_anywhere="false"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="11.0"/>
+        </allowed-os-versions>
+    </volume-check>
+    <choices-outline>
+        <line choice="default">
+            <line choice="ch.danikoenig.remember.vst3"/>
+            <line choice="ch.danikoenig.remember.au"/>
+            <line choice="ch.danikoenig.remember.clap"/>
+        </line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="ch.danikoenig.remember.vst3" visible="false">
+        <pkg-ref id="ch.danikoenig.remember.vst3"/>
+    </choice>
+    <choice id="ch.danikoenig.remember.au" visible="false">
+        <pkg-ref id="ch.danikoenig.remember.au"/>
+    </choice>
+    <choice id="ch.danikoenig.remember.clap" visible="false">
+        <pkg-ref id="ch.danikoenig.remember.clap"/>
+    </choice>
+    <pkg-ref id="ch.danikoenig.remember.clap" version="@VERSION@" onConclusion="none">RememberCLAP.pkg</pkg-ref>
+    <pkg-ref id="ch.danikoenig.remember.vst3" version="@VERSION@" onConclusion="none">RememberVST3.pkg</pkg-ref>
+    <pkg-ref id="ch.danikoenig.remember.au" version="@VERSION@" onConclusion="none">RememberAU.pkg</pkg-ref>
+</installer-gui-script>

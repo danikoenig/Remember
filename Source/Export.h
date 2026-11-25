@@ -1,0 +1,24 @@
+#pragma once
+#include <juce_audio_formats/juce_audio_formats.h>
+#include "Engine.h"
+
+// Dateinamen und WAV-Export. Der Export streamt in Stuecken direkt aus dem Ringpuffer (kein grosser Zwischenspeicher)
+namespace RememberExport
+{
+    struct ClipMeta
+    {
+        juce::String project, type, form, key, scale;   // scale: "", "Major", "Minor"
+        double bpm = 0.0;                               // 0 = unbekannt
+    };
+
+    juce::String sanitise (const juce::String&);
+    // Projekt_Typ_Form_128bpm_Amin  (leere Teile entfallen)
+    juce::String buildStem (const ClipMeta&);
+    // naechste freie Take-Nummer fuer diesen Stem im Ordner (Stem_T01.wav, Stem_T02.wav ...)
+    int nextTake (const juce::File& folder, const juce::String& stem);
+    juce::String fileName (const juce::String& stem, int take);
+    juce::File defaultFolder();
+
+    // Schreibt [start, start+len) als 24-Bit-WAV. Leerer String = ok, sonst Fehlertext
+    juce::String writeWav (const RememberDSP::Storage&, int64_t start, int64_t len, double sampleRate, const juce::File& file);
+}

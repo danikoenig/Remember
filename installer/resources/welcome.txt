@@ -1,0 +1,13 @@
+Remember - always-on audio recorder
+by Dani Koenig
+
+This installs Remember as:
+- VST3:       /Library/Audio/Plug-Ins/VST3   (Bitwig, Ableton Live, Cubase, Reaper ...)
+- Audio Unit: /Library/Audio/Plug-Ins/Components   (Logic Pro, GarageBand)
+- CLAP:       /Library/Audio/Plug-Ins/CLAP   (Bitwig, Reaper ...)
+
+Requirements: Apple Silicon Mac (M1 or newer), macOS 11 or newer.
+
+---
+
+Installiert Remember als VST3, Audio Unit (Logic Pro, GarageBand) und CLAP.
