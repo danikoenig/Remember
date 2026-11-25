@@ -1,5 +1,8 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.0.1
+- **Trim:** after TRIM the first bar line sits on the new start of the clip
+
 ### v1.0.0
 - **First stable release:** always-on recorder with history, host markers and bar selection, editor (copy, cut, paste, delete, crop, trim, reverse, fades, normalize, undo / redo, preview), wrap, rotate, WAV import, SAVE and DRAG WAV with file-name metadata
 - Dark grey design with blue-outlined buttons and the orange frame

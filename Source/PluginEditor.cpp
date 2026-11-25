@@ -463,6 +463,7 @@ void RememberEditor::doTrim()
     }
     S().beginEdit();
     RememberClip::trimSilence (S().clip, -60.0f);
+    S().clip.gridOffset = 0.0;      // Takt 1 liegt auf dem neuen Anfang, sonst bleibt am Loop-Beginn ein Rest Stille im Raster
     clipView.clearSelection();
     clipView.setMarker (-1);
     afterEdit (true);
