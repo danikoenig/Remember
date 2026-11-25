@@ -21,6 +21,7 @@ public:
     void refresh (bool refit = false);                  // nach einer Aenderung des Clips
     void zoomFit();
 
+    std::function<void()> onContext;                    // Rechtsklick
     std::function<void()> onChanged;                    // Auswahl oder Marke geaendert
     std::function<bool (const juce::KeyPress&)> onKey;  // Tastaturkuerzel an den Editor
 

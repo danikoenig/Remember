@@ -85,6 +85,7 @@ private:
     void doRotate();
     void importFile (const juce::File&);
     void chooseImport();
+    void showClipMenu();
     void doPlay();
     bool handleKey (const juce::KeyPress&);
 
@@ -104,9 +105,7 @@ private:
     DragButton dragHistBtn { "DRAG WAV" };
 
     // Editor
-    juce::TextButton copyBtn { "COPY" }, cutBtn { "CUT" }, pasteBtn { "PASTE" }, deleteBtn { "DELETE" }, cropBtn { "CROP" }, trimBtn { "TRIM" },
-                     reverseBtn { "REVERSE" }, fadeInBtn { "FADE IN" }, fadeOutBtn { "FADE OUT" }, fadeLenBtn, normBtn { "NORMALIZE" },
-                     undoBtn { "UNDO" }, redoBtn { "REDO" };
+    juce::TextButton trimBtn { "TRIM" }, reverseBtn { "REVERSE" }, fadeBtn, normBtn { "NORMALIZE" }, undoBtn { "UNDO" }, redoBtn { "REDO" };
     juce::TextButton playBtn { "PLAY" }, loopBtn { "LOOP" }, wrapBtn { "WRAP" }, rotateBtn { "ROTATE" }, importBtn { "IMPORT" };
     juce::TextButton saveClipBtn { "SAVE" };
     DragButton dragClipBtn { "DRAG WAV" };

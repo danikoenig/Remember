@@ -160,6 +160,7 @@ void ClipView::mouseMove (const MouseEvent& e)
 void ClipView::mouseDown (const MouseEvent& e)
 {
     if (! processor.getSession().hasClip()) return;
+    if (e.mods.isPopupMenu()) { if (onContext) onContext(); return; }
     downX = e.position.x;
     moved = false;
     const bool free = e.mods.isCtrlDown() || e.mods.isCommandDown();

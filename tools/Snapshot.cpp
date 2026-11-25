@@ -96,7 +96,6 @@ int main (int argc, char** argv)
     if (bars > 0)
     {
         pressText ("TO EDITOR");
-        pressText ("FADE OUT");
         proc.getAudition().stop();
     }
 

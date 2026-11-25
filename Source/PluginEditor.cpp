@@ -27,8 +27,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
 
     for (Button* b : std::initializer_list<Button*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &fitBtn, &bar1, &bar2, &bar4, &bar8, &bar16,
                                                        &typeBtn, &formBtn, &scaleBtn, &folderBtn, &toEditorBtn, &saveHistBtn, &dragHistBtn,
-                                                       &copyBtn, &cutBtn, &pasteBtn, &deleteBtn, &cropBtn, &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn,
-                                                       &fadeLenBtn, &normBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &rotateBtn, &importBtn, &saveClipBtn, &dragClipBtn })
+                                                       &trimBtn, &reverseBtn, &fadeBtn, &normBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &rotateBtn, &importBtn, &saveClipBtn, &dragClipBtn })
         addAndMakeVisible (b);
     loopBtn.setClickingTogglesState (true);
     addAndMakeVisible (projectEd);
@@ -44,16 +43,9 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     saveHistBtn.setTooltip ("Write the history selection as WAV into the export folder");
     dragHistBtn.setTooltip ("Drag the history selection as a WAV file into your DAW or the Finder");
     toEditorBtn.setTooltip ("Copy the history selection into the editor below");
-    copyBtn.setTooltip ("Copy the selection (Ctrl/Cmd+C)");
-    cutBtn.setTooltip ("Cut the selection (Ctrl/Cmd+X)");
-    pasteBtn.setTooltip ("Paste at the green marker, or at the start of the selection, or at the end (Ctrl/Cmd+V)");
-    deleteBtn.setTooltip ("Delete the selection and close the gap (Delete)");
-    cropBtn.setTooltip ("Keep only the selection");
     trimBtn.setTooltip ("Remove silence at the start and the end (below -60 dB)");
     reverseBtn.setTooltip ("Reverse the selection, or the whole clip");
-    fadeInBtn.setTooltip ("Fade in over the selection. Without a selection: over the fade length at the start");
-    fadeOutBtn.setTooltip ("Fade out over the selection. Without a selection: over the fade length at the end");
-    fadeLenBtn.setTooltip ("Fade length when nothing is selected. Click to change");
+    fadeBtn.setTooltip ("Fade in / fade out over the selection. Without a selection the fade length is used. Click to choose");
     normBtn.setTooltip ("Normalize the selection, or the whole clip, to a peak or loudness target");
     undoBtn.setTooltip ("Undo (Ctrl/Cmd+Z)");
     redoBtn.setTooltip ("Redo (Ctrl/Cmd+Shift+Z)");
@@ -130,22 +122,21 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     dragClipBtn.prepareFile = [this] { return prepareClipDrag(); };
 
     toEditorBtn.onClick = [this] { toEditor(); };
-    copyBtn.onClick = [this] { doCopy(); };
-    cutBtn.onClick = [this] { doCut(); };
-    pasteBtn.onClick = [this] { doPaste(); };
-    deleteBtn.onClick = [this] { doDelete(); };
-    cropBtn.onClick = [this] { doCrop(); };
     trimBtn.onClick = [this] { doTrim(); };
     reverseBtn.onClick = [this] { doReverse(); };
-    fadeInBtn.onClick = [this] { doFade (true); };
-    fadeOutBtn.onClick = [this] { doFade (false); };
-    fadeLenBtn.onClick = [this]
+    fadeBtn.onClick = [this]
     {
         static const int steps[] { 5, 10, 25, 50, 100, 250, 500 };
-        int i = 0;
-        while (i < 6 && steps[i] != fadeMs) ++i;
-        fadeMs = steps[(i + 1) % 7];
+        StringArray items { "Fade in", "Fade out" };
+        for (int v : steps) items.add ("Length  " + String (v) + " ms");
+        showMenu (fadeBtn, "Fade", items, -1, [this] (int i)
+        {
+            if (i == 0) doFade (true);
+            else if (i == 1) doFade (false);
+            else fadeMs = steps[i - 2];
+        });
     };
+    clipView.onContext = [this] { showClipMenu(); };
     normBtn.onClick = [this]
     {
         showMenu (normBtn, "Normalize to", { "Peak -0.1 dB", "Peak -1 dB", "-14 LUFS", "-16 LUFS", "-18 LUFS", "-23 LUFS" }, -1,
@@ -290,7 +281,7 @@ void RememberEditor::refreshInfo()
     const auto form = processor.getProp (PropID::form, "Loop");
     formBtn.setButtonText ("FORM  " + (form == "-" ? String ("-") : form.toUpperCase()));
     scaleBtn.setButtonText ("SCALE  " + (processor.getProp (PropID::scale).isEmpty() ? String ("-") : processor.getProp (PropID::scale).toUpperCase()));
-    folderBtn.setButtonText ("FOLDER  " + currentFolder().getFileName().toUpperCase());
+    folderBtn.setButtonText ("EXPORT TO  " + currentFolder().getFileName().toUpperCase());
     folderBtn.setTooltip (currentFolder().getFullPathName());
     repaint (R (440, 734, 250, 44));
 }
@@ -636,6 +627,33 @@ void RememberEditor::importFile (const File& f)
     setStatus ("Imported  " + f.getFileName() + (bpm > 1.0 ? "  (grid from the host tempo, bar 1 = file start)" : ""));
 }
 
+void RememberEditor::showClipMenu()
+{
+    const bool sel = clipView.hasSelection(), paste = ! S().clipboard.empty();
+    PopupMenu m;
+    m.addItem (1, "Copy", sel);
+    m.addItem (2, "Cut", sel);
+    m.addItem (3, "Paste", paste);
+    m.addItem (4, "Delete", sel);
+    m.addItem (5, "Crop to selection", sel);
+    m.addSeparator();
+    m.addItem (6, "Select all");
+    m.showMenuAsync (PopupMenu::Options(), [safe = SafePointer<RememberEditor> (this)] (int r)
+    {
+        if (safe == nullptr) return;
+        switch (r)
+        {
+            case 1: safe->doCopy(); break;
+            case 2: safe->doCut(); break;
+            case 3: safe->doPaste(); break;
+            case 4: safe->doDelete(); break;
+            case 5: safe->doCrop(); break;
+            case 6: if (safe->S().hasClip()) safe->clipView.setSelection (0, safe->S().clip.length()); break;
+            default: break;
+        }
+    });
+}
+
 void RememberEditor::doPlay()
 {
     auto& a = processor.getAudition();
@@ -692,9 +710,7 @@ void RememberEditor::timerCallback()
     dragHistBtn.setEnabled (sel);
     toEditorBtn.setEnabled (sel);
     toEditorBtn.getProperties().set ("active", sel);
-    for (auto* b : { &copyBtn, &cutBtn, &deleteBtn, &cropBtn }) b->setEnabled (csel);
-    for (auto* b : { &pasteBtn }) b->setEnabled (clip && ! S().clipboard.empty());
-    for (auto* b : { &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &playBtn, &loopBtn }) b->setEnabled (clip);
+        for (auto* b : { &trimBtn, &reverseBtn, &fadeBtn, &normBtn, &playBtn, &loopBtn }) b->setEnabled (clip);
     rotateBtn.setEnabled (clip);
     wrapBtn.setEnabled (csel);
     undoBtn.setEnabled (S().canUndo());
@@ -705,10 +721,9 @@ void RememberEditor::timerCallback()
     playBtn.setButtonText (playing ? "STOP" : "PLAY");
     playBtn.getProperties().set ("active", playing);
     loopBtn.getProperties().set ("active", loopBtn.getToggleState());
-    fadeLenBtn.setButtonText ("FADE  " + String (fadeMs) + " ms");
+    fadeBtn.setButtonText ("FADE  " + String (fadeMs) + " ms");
     for (Component* b : std::initializer_list<Component*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &saveHistBtn, &dragHistBtn, &toEditorBtn,
-                                                            &copyBtn, &cutBtn, &pasteBtn, &deleteBtn, &cropBtn, &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn,
-                                                            &fadeLenBtn, &normBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &rotateBtn, &importBtn, &saveClipBtn, &dragClipBtn }) b->repaint();
+                                                            &trimBtn, &reverseBtn, &fadeBtn, &normBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &rotateBtn, &importBtn, &saveClipBtn, &dragClipBtn }) b->repaint();
 
     if (++infoTick % 8 == 0) refreshInfo();
     if (statusTicks > 0 && --statusTicks == 0) repaint (R (0, 780, designW, 30));
@@ -742,16 +757,14 @@ void RememberEditor::resized()
     {
         float x = 16.0f;
         auto put = [&] (Button& b, float w) { b.setBounds (R (x, 404, w, 34)); x += w + 6.0f; };
-        put (copyBtn, 62); put (cutBtn, 54); put (pasteBtn, 62); put (deleteBtn, 68); put (cropBtn, 56); put (trimBtn, 56);
-        put (reverseBtn, 74); put (fadeInBtn, 70); put (fadeOutBtn, 76); put (fadeLenBtn, 88); put (normBtn, 92);
+        put (trimBtn, 70); put (reverseBtn, 90); put (fadeBtn, 120); put (normBtn, 120);
+        put (wrapBtn, 80); put (rotateBtn, 90); put (importBtn, 90);
+        x = 964.0f - 56.0f * 2 - 6.0f;
         put (undoBtn, 56); put (redoBtn, 56);
     }
     clipView.setBounds (R (16, 446, 948, 190));
     playBtn.setBounds (R (16, 644, 100, 36));
     loopBtn.setBounds (R (124, 644, 80, 36));
-    wrapBtn.setBounds (R (228, 644, 90, 36));
-    rotateBtn.setBounds (R (326, 644, 100, 36));
-    importBtn.setBounds (R (434, 644, 100, 36));
     saveClipBtn.setBounds (R (700, 644, 120, 36));
     dragClipBtn.setBounds (R (828, 644, 136, 36));
 
@@ -834,7 +847,7 @@ void RememberEditor::paint (Graphics& g)
     {
         g.setColour (T.textDim.withAlpha (0.8f));
         g.setFont (Font (rememberFont (11.5f * scale)));
-        g.drawText (String::fromUTF8 ("Click = start point   \xc2\xb7   drag = select   \xc2\xb7   double-click = bar   \xc2\xb7   wheel = zoom   \xc2\xb7   Ctrl/Cmd = no snap   \xc2\xb7   Esc = clear"),
+        g.drawText (String::fromUTF8 ("Click = start point   \xc2\xb7   drag = select   \xc2\xb7   double-click = bar   \xc2\xb7   wheel = zoom   \xc2\xb7   right click = copy, cut, paste   \xc2\xb7   Esc = clear"),
                     R (16, 786, 948, 22), Justification::centredLeft, true);
     }
 }

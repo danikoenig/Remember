@@ -3,6 +3,7 @@ Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. B
 ### v1.0.0
 - **First stable release:** always-on recorder with history, host markers and bar selection, editor (copy, cut, paste, delete, crop, trim, reverse, fades, normalize, undo / redo, preview), wrap, rotate, WAV import, SAVE and DRAG WAV with file-name metadata
 - Dark grey design with blue-outlined buttons and the orange frame
+- Fewer buttons: Copy, Cut, Paste, Delete and Crop are in the right-click menu of the editor (and Ctrl/Cmd+C, X, V, Delete); fades are one FADE menu; the folder button reads EXPORT TO
 
 ### v0.3.1
 - **Design:** dark grey look, buttons with a thin blue outline, orange frame kept
