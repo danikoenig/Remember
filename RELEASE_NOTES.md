@@ -1,5 +1,8 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.0.6
+- **Design:** header like Drift Station: logo on the left, title with "by Dani Koenig · version" below
+
 ### v1.0.5
 - **Design:** base colours now match The One and the other plugins (near-black blue-grey, orange frame)
 

@@ -781,32 +781,23 @@ void RememberEditor::paint (Graphics& g)
     g.setGradientFill (ColourGradient (T.bgTop, 0.0f, 0.0f, T.bgBottom, 0.0f, bounds.getBottom(), false));
     g.fillAll();
 
-    // Kopfzeile wie bei den anderen Plugins: Titel gross, klein daneben "by Dani Koenig . v0.x" auf der Grundlinie
+    // Kopfzeile wie bei den anderen Plugins (z. B. Drift Station): Logo links, Titel, darunter "by Dani Koenig . v1.x"
     const String byText = String::fromUTF8 ("by Dani Koenig  \xc2\xb7  v") + JucePlugin_VersionString;
     {
-        const String title = "REMEMBER";
-        const float titleSize = 60.0f * scale, spacing = T.titleSpacing * scale, smallSize = 11.0f * scale, gapW = 14.0f * scale;
-        Font big (rememberFont (titleSize, true)), small (rememberFont (smallSize));
-        float titleW = 0.0f;
-        for (int i = 0; i < title.length(); ++i)
-            titleW += big.getStringWidthFloat (String::charToString (title[i])) + spacing;
-        titleW -= spacing;
-        const float smallW = small.getStringWidthFloat (byText);
-        float x = ((float) getWidth() - (titleW + gapW + smallW)) * 0.5f;
+        const Colour cyan (0xff9fe3ee), ring (0xff3d5058);
+        const float cx = 50.0f * scale, cy = 42.0f * scale, r = 19.0f * scale;
+        g.setColour (ring);
+        g.drawEllipse (cx - r, cy - r, 2.0f * r, 2.0f * r, 4.0f * scale);
+        g.setColour (cyan);
+        g.fillEllipse (cx - 7.0f * scale - 2.0f * scale, cy - 7.0f * scale + 2.0f * scale, 14.0f * scale, 14.0f * scale);   // Aufnahme-Punkt
+        g.fillEllipse (cx + r * 0.72f - 5.0f * scale, cy - r * 0.72f - 5.0f * scale, 10.0f * scale, 10.0f * scale);        // Marke auf dem Ring
 
         g.setColour (T.text);
-        g.setFont (big);
-        for (int i = 0; i < title.length(); ++i)
-        {
-            const auto ch = String::charToString (title[i]);
-            const float gw = big.getStringWidthFloat (ch);
-            g.drawText (ch, Rectangle<float> (x, 8.0f * scale, gw + 4.0f, 62.0f * scale), Justification::centredLeft);
-            x += gw + spacing;
-        }
-        x = x - spacing + gapW;
+        g.setFont (Font (rememberFont (36.0f * scale, true)));
+        g.drawText ("REMEMBER", R (86, 10, 500, 40), Justification::centredLeft);
         g.setColour (T.textDim);
-        g.setFont (small);
-        g.drawText (byText, Rectangle<float> (x, 44.0f * scale, smallW + 6.0f, 16.0f * scale), Justification::centredLeft);
+        g.setFont (Font (rememberFont (14.0f * scale)));
+        g.drawText (byText, R (88, 50, 500, 18), Justification::centredLeft);
     }
 
     // Beschriftung "BARS" vor den Taktknoepfen
