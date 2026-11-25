@@ -111,21 +111,19 @@ namespace RememberClip
         if (! r.empty()) crop (c, r);
     }
 
-    void wrap (Clip& c, Range r, int64_t xfade)
+    void wrap (Clip& c, Range r)
     {
         r = clampRange (c, r);
         if (r.empty() || r.length() >= c.length()) return;
         const Channels tail = extract (c, r);
         deleteRange (c, r);
-        const int64_t n = c.length(), t = r.length();
-        const int64_t fade = std::min<int64_t> (std::max<int64_t> (xfade, 0), t);
+        const int64_t n = c.length(), t = std::min<int64_t> (r.length(), n);
         for (size_t k = 0; k < c.ch.size(); ++k)
             for (int64_t i = 0; i < t; ++i)
             {
-                float x = tail[k][(size_t) i];
-                const int64_t fromEnd = t - 1 - i;
-                if (fromEnd < fade) x *= 0.5f * (1.0f + std::cos (3.14159265358979f * (1.0f - (float) fromEnd / (float) fade)));
-                c.ch[k][(size_t) (i % n)] += x;      // mehrfach zurueckfalten, falls der Tail laenger als der Rest ist
+                const float x = (float) (i + 0.5) / (float) t;                    // 0 -> 1 ueber den Tail
+                const float wTail = std::cos (1.57079632679f * x), wHead = std::sin (1.57079632679f * x);
+                c.ch[k][(size_t) i] = c.ch[k][(size_t) i] * wHead + tail[k][(size_t) i] * wTail;
             }
     }
 

@@ -44,9 +44,10 @@ namespace RememberClip
     Range findNonSilent (const Clip&, float thresholdDb);             // leer, wenn alles still ist
     void trimSilence (Clip&, float thresholdDb);                      // Stille vorne und hinten entfernen
 
-    // Wrap: r ist der markierte Nachklang (Tail). Er wird aus dem Clip genommen und auf den Anfang des Clips gemischt.
-    // Das Ende des Tails blendet ueber xfade Samples aus. Material nach dem Tail rueckt nach, das Raster wird mitgefuehrt
-    void wrap (Clip&, Range tail, int64_t xfade);
+    // Wrap: r ist der markierte Nachklang (Tail). Er wird aus dem Clip genommen und ueber die gesamte Tail-Laenge
+    // (gleiche Leistung) mit dem Anfang des Clips ueberblendet: der Tail blendet aus, der Anfang ein.
+    // Der Clip endet exakt am Beginn der Auswahl. Ist der Tail laenger als der Rest, wird nur der Anfang des Tails verwendet
+    void wrap (Clip&, Range tail);
     // Rotate: dreht den Clip kreisfoermig, sodass pos der neue Anfang wird. Laenge bleibt gleich.
     // An der alten Schnittstelle blendet ein kurzer Ueberblend (xfade Samples je Seite, gleiche Leistung) Klicks weg
     void rotate (Clip&, int64_t pos, int64_t xfade);

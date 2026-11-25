@@ -52,7 +52,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     redoBtn.setTooltip ("Redo (Ctrl/Cmd+Shift+Z)");
     playBtn.setTooltip ("Listen to the editor through the plugin output (Space). Starts at the green marker");
     loopBtn.setTooltip ("Loop the playback");
-    wrapBtn.setTooltip ("Select the tail (the reverb after the loop) and press FOLD TAIL: it is mixed onto the start of the clip, so the loop ends where the selection began. The fade length fades out the tail end");
+    wrapBtn.setTooltip ("Select the tail (the reverb after the loop) and press FOLD TAIL: the whole tail is crossfaded over the start of the clip and the clip ends exactly where the selection began");
     rotateBtn.setTooltip ("Select the tail (or set the green marker) and press TO FRONT: it moves to the front, the length stays the same");
     importBtn.setTooltip ("Load a WAV, AIFF or FLAC file into the editor. You can also drop a file onto the plugin");
     saveClipBtn.setTooltip ("Write the edited clip as WAV into the export folder");
@@ -532,11 +532,11 @@ void RememberEditor::doWrap()
         return;
     }
     S().beginEdit();
-    RememberClip::wrap (S().clip, r, (int64_t) std::llround (S().clip.sampleRate * fadeMs / 1000.0));
+    RememberClip::wrap (S().clip, r);
     clipView.clearSelection();
     clipView.setMarker (-1);
     afterEdit (true);
-    setStatus ("Tail folded: " + String ((double) r.length() / S().clip.sampleRate, 2) + " s tail folded back onto the start");
+    setStatus ("Tail folded: " + String ((double) r.length() / S().clip.sampleRate, 2) + " s tail crossfaded over the start");
 }
 
 void RememberEditor::doRotate()
