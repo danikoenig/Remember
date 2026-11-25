@@ -786,11 +786,21 @@ void RememberEditor::paint (Graphics& g)
     {
         const Colour cyan (0xff9fe3ee), ring (0xff3d5058);
         const float cx = 50.0f * scale, cy = 42.0f * scale, r = 19.0f * scale;
+        // Remember-Logo: Ring = Ringpuffer, heller Bogen = zurueckliegende Aufnahme, Punkt = Aufnahmekopf "jetzt"
+        const float sw = 4.5f * scale;
         g.setColour (ring);
-        g.drawEllipse (cx - r, cy - r, 2.0f * r, 2.0f * r, 4.0f * scale);
+        g.drawEllipse (cx - r, cy - r, 2.0f * r, 2.0f * r, sw);
+        const float head = 0.0f;                                         // oben (JUCE misst ab 12 Uhr im Uhrzeigersinn)
+        Path trail;
+        trail.addCentredArc (cx, cy, r, r, 0.0f, head - 1.9f, head, true);   // gegen den Uhrzeigersinn zurueck
+        g.setColour (cyan.withAlpha (0.55f));
+        g.strokePath (trail, PathStrokeType (sw, PathStrokeType::curved, PathStrokeType::rounded));
+        Path near;
+        near.addCentredArc (cx, cy, r, r, 0.0f, head - 0.7f, head, true);
         g.setColour (cyan);
-        g.fillEllipse (cx - 7.0f * scale - 2.0f * scale, cy - 7.0f * scale + 2.0f * scale, 14.0f * scale, 14.0f * scale);   // Aufnahme-Punkt
-        g.fillEllipse (cx + r * 0.72f - 5.0f * scale, cy - r * 0.72f - 5.0f * scale, 10.0f * scale, 10.0f * scale);        // Marke auf dem Ring
+        g.strokePath (near, PathStrokeType (sw, PathStrokeType::curved, PathStrokeType::rounded));
+        g.fillEllipse (cx - 5.5f * scale, cy - r - 5.5f * scale, 11.0f * scale, 11.0f * scale);
+        g.fillEllipse (cx - 4.5f * scale, cy - 4.5f * scale, 9.0f * scale, 9.0f * scale);
 
         g.setColour (T.text);
         g.setFont (Font (rememberFont (36.0f * scale, true)));

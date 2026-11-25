@@ -1,5 +1,8 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.0.7
+- **Logo:** own Remember logo (ring buffer with a trail behind the recording head)
+
 ### v1.0.6
 - **Design:** header like Drift Station: logo on the left, title with "by Dani Koenig · version" below
 
