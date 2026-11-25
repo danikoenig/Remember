@@ -92,4 +92,27 @@ namespace RememberExport
         writer.reset();
         return {};
     }
+
+    String writeClipWav (const RememberClip::Clip& clip, const File& file)
+    {
+        if (clip.empty()) return "The editor is empty";
+        if (! file.getParentDirectory().createDirectory()) return "Cannot create folder";
+
+        auto stream = std::make_unique<FileOutputStream> (file);
+        if (! stream->openedOk()) return "Cannot write " + file.getFileName();
+        stream->setPosition (0);
+        stream->truncate();
+
+        WavAudioFormat wav;
+        std::unique_ptr<AudioFormatWriter> writer (wav.createWriterFor (stream.get(), clip.sampleRate, (unsigned) clip.numChannels(), 24, {}, 0));
+        if (writer == nullptr) return "Cannot create WAV writer";
+        stream.release();
+
+        std::vector<const float*> ptr;
+        for (const auto& c : clip.ch) ptr.push_back (c.data());
+        const bool ok = writer->writeFromFloatArrays (ptr.data(), clip.numChannels(), (int) clip.length());
+        writer.reset();
+        if (! ok) { file.deleteFile(); return "Write error (disk full?)"; }
+        return {};
+    }
 }

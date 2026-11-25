@@ -1,5 +1,6 @@
 #pragma once
 #include <juce_audio_formats/juce_audio_formats.h>
+#include "Clip.h"
 #include "Engine.h"
 
 // Dateinamen und WAV-Export. Der Export streamt in Stuecken direkt aus dem Ringpuffer (kein grosser Zwischenspeicher)
@@ -21,4 +22,6 @@ namespace RememberExport
 
     // Schreibt [start, start+len) als 24-Bit-WAV. Leerer String = ok, sonst Fehlertext
     juce::String writeWav (const RememberDSP::Storage&, int64_t start, int64_t len, double sampleRate, const juce::File& file);
+    // Schreibt den bearbeiteten Editor-Clip (mit allen Aenderungen) als 24-Bit-WAV
+    juce::String writeClipWav (const RememberClip::Clip&, const juce::File& file);
 }

@@ -2,6 +2,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "PluginProcessor.h"
 #include "HistoryView.h"
+#include "ClipView.h"
 #include "Look.h"
 #include "Export.h"
 
@@ -46,31 +47,71 @@ private:
                    std::function<void (int)> onPick);
     juce::File currentFolder() const;
     void chooseFolder();
-    RememberExport::ClipMeta currentMeta() const;
+    RememberExport::ClipMeta currentMeta (double bpm) const;
+    double historyBpm() const;
     void refreshInfo();
-    void save();
-    juce::File prepareDragFile();
     void setStatus (const juce::String& s);
     void fillTextEditor (juce::TextEditor&, const char* prop, const juce::String& hint);
 
-    static constexpr float designW = 980.0f, designH = 548.0f;
+    // Export
+    void saveHistory();
+    juce::File prepareHistoryDrag();
+    void saveClip();
+    juce::File prepareClipDrag();
+
+    // Editor-Funktionen
+    RememberClip::Session& S() { return processor.getSession(); }
+    void afterEdit (bool refit = false);
+    bool needClip();
+    bool needSelection (RememberClip::Range&);
+    RememberClip::Range whole() const;
+    void toEditor();
+    void doCopy();
+    void doCut();
+    void doPaste();
+    void doDelete();
+    void doCrop();
+    void doTrim();
+    void doReverse();
+    void doFade (bool in);
+    void doNormalize (int mode);
+    void doUndo();
+    void doRedo();
+    void doPlay();
+    bool handleKey (const juce::KeyPress&);
+
+    static constexpr float designW = 980.0f, designH = 818.0f;
     float frameWidth() const noexcept { return 4.0f * scale; }
 
     RememberProcessor& processor;
     RememberLookAndFeel lnf;
     HistoryView view;
+    ClipView clipView;
 
+    // Kopf: History
     juce::TextButton histBtn, snapBtn, holdBtn { "HOLD" }, liveBtn { "LIVE" }, fitBtn { "FIT" };
     juce::TextButton bar1 { "1" }, bar2 { "2" }, bar4 { "4" }, bar8 { "8" }, bar16 { "16" };
+    juce::TextButton toEditorBtn { "TO EDITOR" };
+    juce::TextButton saveHistBtn { "SAVE" };
+    DragButton dragHistBtn { "DRAG WAV" };
+
+    // Editor
+    juce::TextButton copyBtn { "COPY" }, cutBtn { "CUT" }, pasteBtn { "PASTE" }, deleteBtn { "DELETE" }, cropBtn { "CROP" }, trimBtn { "TRIM" },
+                     reverseBtn { "REVERSE" }, fadeInBtn { "FADE IN" }, fadeOutBtn { "FADE OUT" }, fadeLenBtn, normBtn { "NORMALIZE" },
+                     undoBtn { "UNDO" }, redoBtn { "REDO" };
+    juce::TextButton playBtn { "PLAY" }, loopBtn { "LOOP" };
+    juce::TextButton saveClipBtn { "SAVE" };
+    DragButton dragClipBtn { "DRAG WAV" };
+
+    // Metadaten und Ordner
     juce::TextEditor projectEd, keyEd;
     juce::TextButton typeBtn, formBtn, scaleBtn, folderBtn;
-    juce::TextButton saveBtn { "SAVE" };
-    DragButton dragBtn { "DRAG WAV" };
 
     juce::TooltipWindow tooltip { this, 700 };
     std::unique_ptr<juce::FileChooser> chooser;
     juce::String infoText, statusText;
     int statusTicks = 0, infoTick = 0;
+    int fadeMs = 25;
     float scale = 1.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RememberEditor)

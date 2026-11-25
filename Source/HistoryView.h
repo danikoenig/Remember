@@ -1,6 +1,7 @@
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Colours.h"
+#include "Clip.h"
 #include "Engine.h"
 
 // Anzeige der Aufnahme: Wellenform, Takt-/Beat-Raster, Play-Start, Startpunkt und Auswahl mit Snapping.
@@ -26,6 +27,8 @@ public:
     bool getSelection (int64_t& start, int64_t& end) const;
     // Tempo und Taktlaenge am Beginn der Auswahl (false = Host liefert nichts)
     bool getSelectionTempo (double& bpm, float& beatsPerBar) const;
+    // Kopiert die Auswahl samt Tempo und Raster in einen Clip (fuer den Editor)
+    bool grabClip (RememberClip::Clip& out) const;
     // Laenge der Auswahl in Takten (false = unbekannt)
     bool getSelectionBars (double& bars) const;
 

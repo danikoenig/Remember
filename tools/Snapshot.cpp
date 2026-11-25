@@ -67,7 +67,7 @@ int main (int argc, char** argv)
     }
 
     std::unique_ptr<AudioProcessorEditor> ed (proc.createEditor());
-    ed->setSize (980, 548);
+    ed->setSize (980, 818);
     MessageManager::getInstance()->runDispatchLoopUntil (300);
 
     // Button "bars" druecken: letzte vollstaendige Takte (ohne Startpunkt)
@@ -80,6 +80,26 @@ int main (int argc, char** argv)
     if (bars > 0) press (*ed);
     MessageManager::getInstance()->runDispatchLoopUntil (400);
 
+    // In den Editor kopieren, bearbeiten
+    auto pressText = [&] (const String& text)
+    {
+        std::function<bool (Component&)> f = [&] (Component& c)
+        {
+            if (auto* b = dynamic_cast<TextButton*> (&c))
+                if (b->getButtonText() == text && b->isEnabled()) { b->triggerClick(); return true; }
+            for (auto* ch : c.getChildren()) if (f (*ch)) return true;
+            return false;
+        };
+        f (*ed);
+        MessageManager::getInstance()->runDispatchLoopUntil (150);
+    };
+    if (bars > 0)
+    {
+        pressText ("TO EDITOR");
+        pressText ("FADE OUT");
+        proc.getAudition().stop();
+    }
+
     // SAVE druecken (Ordner /tmp/remember_out), Ergebnis wird von aussen geprueft
     proc.setProp (PropID::folder, "/tmp/remember_out");
     proc.setProp (PropID::project, "Test");
@@ -89,10 +109,10 @@ int main (int argc, char** argv)
     std::function<void (Component&)> save = [&] (Component& c)
     {
         if (auto* b = dynamic_cast<TextButton*> (&c))
-            if (b->getButtonText() == "SAVE") { b->triggerClick(); return; }
+            if (b->getButtonText() == "SAVE") b->triggerClick();
         for (auto* ch : c.getChildren()) save (*ch);
     };
-    save (*ed);
+    save (*ed);   // zwei SAVE-Knoepfe: History und Editor
     MessageManager::getInstance()->runDispatchLoopUntil (200);
 
     const auto img = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.0f);

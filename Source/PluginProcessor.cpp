@@ -45,6 +45,7 @@ bool RememberProcessor::isBusesLayoutSupported (const BusesLayout& l) const
 void RememberProcessor::prepareToPlay (double sr, int)
 {
     sampleRate = sr;
+    audition.setSampleRate (sr);
     engine.prepare (sr, jlimit (1, 2, getTotalNumInputChannels()), historySecondsFor ((int) pHistory->load()));
 }
 
@@ -72,6 +73,17 @@ void RememberProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
 
     engine.process (buffer.getArrayOfReadPointers(), jmin (buffer.getNumChannels(), getTotalNumInputChannels()),
                     buffer.getNumSamples(), h);
+
+    // Vorhoeren des Editor-Clips (nach der Aufnahme, damit immer der Eingang aufgenommen wird)
+    audition.process (buffer.getArrayOfWritePointers(), jmin (buffer.getNumChannels(), 2), buffer.getNumSamples());
+}
+
+void RememberProcessor::publishClip()
+{
+    auto d = std::make_shared<RememberAudition::Data>();
+    d->sampleRate = session.clip.sampleRate;
+    d->ch = session.clip.ch;
+    audition.publish (std::move (d));
 }
 
 AudioProcessorEditor* RememberProcessor::createEditor() { return new RememberEditor (*this); }

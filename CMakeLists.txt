@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Remember VERSION 0.1.0)
+project(Remember VERSION 0.2.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -51,6 +51,9 @@ juce_add_plugin(Remember
     VST3_CATEGORIES Fx Tools)
 
 target_sources(Remember PRIVATE
+    Source/Audition.cpp
+    Source/Clip.cpp
+    Source/ClipView.cpp
     Source/Engine.cpp
     Source/Export.cpp
     Source/HistoryView.cpp
@@ -79,13 +82,15 @@ clap_juce_extensions_plugin(TARGET Remember
 
 # Engine-Test ohne JUCE (cmake --build build --target RememberEngineTest)
 add_executable(RememberEngineTest EXCLUDE_FROM_ALL tests/EngineTest.cpp Source/Engine.cpp)
+add_executable(RememberClipTest EXCLUDE_FROM_ALL tests/ClipTest.cpp Source/Clip.cpp Source/Audition.cpp)
 
 # Entwickler-Werkzeug: rendert die Oberflaeche mit Testdaten in ein PNG (cmake -DREMEMBER_SNAPSHOT_TOOL=ON)
 option(REMEMBER_SNAPSHOT_TOOL "Build the UI snapshot tool" OFF)
 if(REMEMBER_SNAPSHOT_TOOL)
     juce_add_console_app(RememberSnapshot PRODUCT_NAME "RememberSnapshot")
     target_sources(RememberSnapshot PRIVATE
-        tools/Snapshot.cpp Source/Engine.cpp Source/Export.cpp Source/HistoryView.cpp
+        tools/Snapshot.cpp Source/Audition.cpp Source/Clip.cpp Source/ClipView.cpp Source/Engine.cpp
+        Source/Export.cpp Source/HistoryView.cpp
         Source/Look.cpp Source/PluginProcessor.cpp Source/PluginEditor.cpp)
     target_compile_definitions(RememberSnapshot PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0
         JucePlugin_VersionString="0.1.0" JUCE_MODAL_LOOPS_PERMITTED=1)

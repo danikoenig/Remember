@@ -12,18 +12,25 @@ namespace
 }
 
 RememberEditor::RememberEditor (RememberProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), view (p.getEngine())
+    : AudioProcessorEditor (&p), processor (p), view (p.getEngine()), clipView (p)
 {
     setLookAndFeel (&lnf);
     setWantsKeyboardFocus (true);
 
     addAndMakeVisible (view);
+    addAndMakeVisible (clipView);
+    clipView.setSnapMode (getChoice (ParamID::snap));
+    clipView.onChanged = [this] { refreshInfo(); };
+    clipView.onKey = [this] (const KeyPress& k) { return handleKey (k); };
     view.setSnapMode (getChoice (ParamID::snap));
     view.setHold (processor.apvts.getRawParameterValue (ParamID::hold)->load() > 0.5f);
 
     for (Button* b : std::initializer_list<Button*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &fitBtn, &bar1, &bar2, &bar4, &bar8, &bar16,
-                                                       &typeBtn, &formBtn, &scaleBtn, &folderBtn, &saveBtn, &dragBtn })
+                                                       &typeBtn, &formBtn, &scaleBtn, &folderBtn, &toEditorBtn, &saveHistBtn, &dragHistBtn,
+                                                       &copyBtn, &cutBtn, &pasteBtn, &deleteBtn, &cropBtn, &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn,
+                                                       &fadeLenBtn, &normBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &saveClipBtn, &dragClipBtn })
         addAndMakeVisible (b);
+    loopBtn.setClickingTogglesState (true);
     addAndMakeVisible (projectEd);
     addAndMakeVisible (keyEd);
 
@@ -34,8 +41,26 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     fitBtn.setTooltip ("Show the whole history (F)");
     bar1.setTooltip ("Select 1 bar from the start point (without a start point: the last complete bar)");
     bar2.setTooltip ("Select 2 bars"); bar4.setTooltip ("Select 4 bars"); bar8.setTooltip ("Select 8 bars"); bar16.setTooltip ("Select 16 bars");
-    saveBtn.setTooltip ("Write the selection as WAV into the export folder");
-    dragBtn.setTooltip ("Drag the selection as a WAV file into your DAW or the Finder");
+    saveHistBtn.setTooltip ("Write the history selection as WAV into the export folder");
+    dragHistBtn.setTooltip ("Drag the history selection as a WAV file into your DAW or the Finder");
+    toEditorBtn.setTooltip ("Copy the history selection into the editor below");
+    copyBtn.setTooltip ("Copy the selection (Ctrl/Cmd+C)");
+    cutBtn.setTooltip ("Cut the selection (Ctrl/Cmd+X)");
+    pasteBtn.setTooltip ("Paste at the green marker, or at the start of the selection, or at the end (Ctrl/Cmd+V)");
+    deleteBtn.setTooltip ("Delete the selection and close the gap (Delete)");
+    cropBtn.setTooltip ("Keep only the selection");
+    trimBtn.setTooltip ("Remove silence at the start and the end (below -60 dB)");
+    reverseBtn.setTooltip ("Reverse the selection, or the whole clip");
+    fadeInBtn.setTooltip ("Fade in over the selection. Without a selection: over the fade length at the start");
+    fadeOutBtn.setTooltip ("Fade out over the selection. Without a selection: over the fade length at the end");
+    fadeLenBtn.setTooltip ("Fade length when nothing is selected. Click to change");
+    normBtn.setTooltip ("Normalize the selection, or the whole clip, to a peak or loudness target");
+    undoBtn.setTooltip ("Undo (Ctrl/Cmd+Z)");
+    redoBtn.setTooltip ("Redo (Ctrl/Cmd+Shift+Z)");
+    playBtn.setTooltip ("Listen to the editor through the plugin output (Space). Starts at the green marker");
+    loopBtn.setTooltip ("Loop the playback");
+    saveClipBtn.setTooltip ("Write the edited clip as WAV into the export folder");
+    dragClipBtn.setTooltip ("Drag the edited clip as a WAV file into your DAW or the Finder");
 
     histBtn.onClick = [this]
     {
@@ -96,8 +121,38 @@ RememberEditor::RememberEditor (RememberProcessor& p)
         showMenu (scaleBtn, "Scale", items, cur, [this] (int i) { processor.setProp (PropID::scale, i == 0 ? String() : scaleNames[i - 1]); refreshInfo(); });
     };
     folderBtn.onClick = [this] { chooseFolder(); };
-    saveBtn.onClick = [this] { save(); };
-    dragBtn.prepareFile = [this] { return prepareDragFile(); };
+    saveHistBtn.onClick = [this] { saveHistory(); };
+    dragHistBtn.prepareFile = [this] { return prepareHistoryDrag(); };
+    saveClipBtn.onClick = [this] { saveClip(); };
+    dragClipBtn.prepareFile = [this] { return prepareClipDrag(); };
+
+    toEditorBtn.onClick = [this] { toEditor(); };
+    copyBtn.onClick = [this] { doCopy(); };
+    cutBtn.onClick = [this] { doCut(); };
+    pasteBtn.onClick = [this] { doPaste(); };
+    deleteBtn.onClick = [this] { doDelete(); };
+    cropBtn.onClick = [this] { doCrop(); };
+    trimBtn.onClick = [this] { doTrim(); };
+    reverseBtn.onClick = [this] { doReverse(); };
+    fadeInBtn.onClick = [this] { doFade (true); };
+    fadeOutBtn.onClick = [this] { doFade (false); };
+    fadeLenBtn.onClick = [this]
+    {
+        static const int steps[] { 5, 10, 25, 50, 100, 250, 500 };
+        int i = 0;
+        while (i < 6 && steps[i] != fadeMs) ++i;
+        fadeMs = steps[(i + 1) % 7];
+    };
+    normBtn.onClick = [this]
+    {
+        showMenu (normBtn, "Normalize to", { "Peak -0.1 dB", "Peak -1 dB", "-14 LUFS", "-16 LUFS", "-18 LUFS", "-23 LUFS" }, -1,
+                  [this] (int i) { doNormalize (i); });
+    };
+    undoBtn.onClick = [this] { doUndo(); };
+    redoBtn.onClick = [this] { doRedo(); };
+    playBtn.onClick = [this] { doPlay(); };
+    loopBtn.onClick = [this] { processor.getAudition().setLoop (loopBtn.getToggleState()); };
+    processor.getAudition().setLoop (false);
 
     view.onChanged = [this] { refreshInfo(); };
 
@@ -106,6 +161,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     setResizeLimits (640, (int) (640.0f * designH / designW), 1700, (int) (1700.0f * designH / designW));
     setSize ((int) designW, (int) designH);
 
+    if (S().hasClip()) clipView.refresh (true);
     refreshInfo();
     startTimerHz (30);
 }
@@ -113,6 +169,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
 RememberEditor::~RememberEditor()
 {
     stopTimer();
+    processor.getAudition().stop();
     setLookAndFeel (nullptr);
 }
 
@@ -182,7 +239,15 @@ void RememberEditor::chooseFolder()
                           });
 }
 
-RememberExport::ClipMeta RememberEditor::currentMeta() const
+double RememberEditor::historyBpm() const
+{
+    double bpm; float bpb;
+    if (view.getSelectionTempo (bpm, bpb)) return bpm;
+    if (processor.getEngine().hostHasPpq.load()) return processor.getEngine().lastBpm.load();
+    return 0.0;
+}
+
+RememberExport::ClipMeta RememberEditor::currentMeta (double bpm) const
 {
     RememberExport::ClipMeta m;
     m.project = processor.getProp (PropID::project);
@@ -191,9 +256,7 @@ RememberExport::ClipMeta RememberEditor::currentMeta() const
     m.form = form == "-" ? String() : form;
     m.key = processor.getProp (PropID::key);
     m.scale = processor.getProp (PropID::scale);
-    double bpm; float bpb;
-    if (view.getSelectionTempo (bpm, bpb)) m.bpm = bpm;
-    else if (processor.getEngine().hostHasPpq.load()) m.bpm = processor.getEngine().lastBpm.load();
+    m.bpm = bpm;
     return m;
 }
 
@@ -206,7 +269,8 @@ void RememberEditor::setStatus (const String& s)
 
 void RememberEditor::refreshInfo()
 {
-    const auto meta = currentMeta();
+    const double bpm = S().hasClip() ? S().clip.bpm : historyBpm();
+    const auto meta = currentMeta (bpm);
     const auto stem = RememberExport::buildStem (meta);
     const int take = RememberExport::nextTake (currentFolder(), stem);
 
@@ -222,20 +286,19 @@ void RememberEditor::refreshInfo()
     scaleBtn.setButtonText ("SCALE  " + (processor.getProp (PropID::scale).isEmpty() ? String ("-") : processor.getProp (PropID::scale).toUpperCase()));
     folderBtn.setButtonText ("FOLDER  " + currentFolder().getFileName().toUpperCase());
     folderBtn.setTooltip (currentFolder().getFullPathName());
-    repaint (R (440, 452, 250, 52));
+    repaint (R (440, 734, 250, 44));
 }
 
-void RememberEditor::save()
+void RememberEditor::saveHistory()
 {
     int64_t s, e;
     auto st = processor.getEngine().storage();
     if (st == nullptr || ! view.getSelection (s, e))
     {
-        setStatus ("Select a range first: drag in the waveform or use a BARS button");
+        setStatus ("Select a range in the history first: drag in the waveform or use a BARS button");
         return;
     }
-    const auto meta = currentMeta();
-    const auto stem = RememberExport::buildStem (meta);
+    const auto stem = RememberExport::buildStem (currentMeta (historyBpm()));
     const auto folder = currentFolder();
     const auto file = folder.getChildFile (RememberExport::fileName (stem, RememberExport::nextTake (folder, stem)));
     const auto err = RememberExport::writeWav (*st, s, e - s, processor.getEngine().getSampleRate(), file);
@@ -243,22 +306,254 @@ void RememberEditor::save()
     refreshInfo();
 }
 
-File RememberEditor::prepareDragFile()
+File RememberEditor::prepareHistoryDrag()
 {
     int64_t s, e;
     auto st = processor.getEngine().storage();
     if (st == nullptr || ! view.getSelection (s, e))
     {
-        setStatus ("Select a range first: drag in the waveform or use a BARS button");
+        setStatus ("Select a range in the history first: drag in the waveform or use a BARS button");
         return {};
     }
-    const auto meta = currentMeta();
-    const auto stem = RememberExport::buildStem (meta);
+    const auto stem = RememberExport::buildStem (currentMeta (historyBpm()));
     const auto tmp = File::getSpecialLocation (File::tempDirectory).getChildFile ("Remember");
     const auto file = tmp.getChildFile (RememberExport::fileName (stem, RememberExport::nextTake (currentFolder(), stem)));
     const auto err = RememberExport::writeWav (*st, s, e - s, processor.getEngine().getSampleRate(), file);
     if (err.isNotEmpty()) { setStatus (err); return {}; }
     return file;
+}
+
+void RememberEditor::saveClip()
+{
+    if (! needClip()) return;
+    const auto stem = RememberExport::buildStem (currentMeta (S().clip.bpm));
+    const auto folder = currentFolder();
+    const auto file = folder.getChildFile (RememberExport::fileName (stem, RememberExport::nextTake (folder, stem)));
+    const auto err = RememberExport::writeClipWav (S().clip, file);
+    setStatus (err.isEmpty() ? "Saved  " + file.getFileName() : err);
+    refreshInfo();
+}
+
+File RememberEditor::prepareClipDrag()
+{
+    if (! needClip()) return {};
+    const auto stem = RememberExport::buildStem (currentMeta (S().clip.bpm));
+    const auto tmp = File::getSpecialLocation (File::tempDirectory).getChildFile ("Remember");
+    const auto file = tmp.getChildFile (RememberExport::fileName (stem, RememberExport::nextTake (currentFolder(), stem)));
+    const auto err = RememberExport::writeClipWav (S().clip, file);
+    if (err.isNotEmpty()) { setStatus (err); return {}; }
+    return file;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Editor
+
+bool RememberEditor::needClip()
+{
+    if (S().hasClip()) return true;
+    setStatus ("The editor is empty. Select audio in the history and press TO EDITOR");
+    return false;
+}
+
+bool RememberEditor::needSelection (RememberClip::Range& r)
+{
+    if (! needClip()) return false;
+    if (clipView.getSelection (r)) return true;
+    setStatus ("Select a range in the editor first");
+    return false;
+}
+
+RememberClip::Range RememberEditor::whole() const
+{
+    RememberClip::Range r;
+    if (! clipView.getSelection (r)) r = { 0, processor.getSession().clip.length() };
+    return r;
+}
+
+void RememberEditor::afterEdit (bool refit)
+{
+    S().touch();
+    processor.publishClip();
+    clipView.refresh (refit);
+    refreshInfo();
+}
+
+void RememberEditor::toEditor()
+{
+    RememberClip::Clip c;
+    if (! view.grabClip (c))
+    {
+        setStatus ("Select a range in the history first: drag in the waveform or use a BARS button");
+        return;
+    }
+    processor.getAudition().stop();
+    S().load (std::move (c));
+    clipView.clearSelection();
+    clipView.setMarker (-1);
+    afterEdit (true);
+    setStatus (String ((double) S().clip.length() / S().clip.sampleRate, 2) + " s copied into the editor");
+}
+
+void RememberEditor::doCopy()
+{
+    RememberClip::Range r;
+    if (! needSelection (r)) return;
+    S().clipboard = RememberClip::extract (S().clip, r);
+    setStatus ("Copied " + String ((double) r.length() / S().clip.sampleRate, 2) + " s");
+}
+
+void RememberEditor::doCut()
+{
+    RememberClip::Range r;
+    if (! needSelection (r)) return;
+    S().beginEdit();
+    S().clipboard = RememberClip::extract (S().clip, r);
+    RememberClip::deleteRange (S().clip, r);
+    clipView.clearSelection();
+    clipView.setMarker (r.a);
+    afterEdit();
+}
+
+void RememberEditor::doPaste()
+{
+    if (! needClip()) return;
+    if (S().clipboard.empty() || S().clipboard[0].empty() || (int) S().clipboard.size() != S().clip.numChannels())
+    {
+        setStatus ("Nothing to paste. Copy or cut a range first");
+        return;
+    }
+    RememberClip::Range r;
+    int64_t pos = S().clip.length();
+    if (clipView.getMarker() >= 0) pos = clipView.getMarker();
+    else if (clipView.getSelection (r)) pos = r.a;
+    pos = jlimit<int64_t> (0, S().clip.length(), pos);
+    S().beginEdit();
+    RememberClip::insert (S().clip, pos, S().clipboard);
+    const int64_t n = (int64_t) S().clipboard[0].size();
+    afterEdit();
+    clipView.setSelection (pos, pos + n);
+}
+
+void RememberEditor::doDelete()
+{
+    RememberClip::Range r;
+    if (! needSelection (r)) return;
+    S().beginEdit();
+    RememberClip::deleteRange (S().clip, r);
+    clipView.clearSelection();
+    clipView.setMarker (r.a);
+    afterEdit();
+}
+
+void RememberEditor::doCrop()
+{
+    RememberClip::Range r;
+    if (! needSelection (r)) return;
+    S().beginEdit();
+    RememberClip::crop (S().clip, r);
+    clipView.clearSelection();
+    clipView.setMarker (-1);
+    afterEdit (true);
+}
+
+void RememberEditor::doTrim()
+{
+    if (! needClip()) return;
+    if (RememberClip::findNonSilent (S().clip, -60.0f).empty())
+    {
+        setStatus ("The clip is silent, nothing to trim");
+        return;
+    }
+    S().beginEdit();
+    RememberClip::trimSilence (S().clip, -60.0f);
+    clipView.clearSelection();
+    clipView.setMarker (-1);
+    afterEdit (true);
+}
+
+void RememberEditor::doReverse()
+{
+    if (! needClip()) return;
+    S().beginEdit();
+    RememberClip::reverse (S().clip, whole());
+    afterEdit();
+}
+
+void RememberEditor::doFade (bool in)
+{
+    if (! needClip()) return;
+    RememberClip::Range r;
+    if (! clipView.getSelection (r))
+    {
+        const int64_t n = jmin (S().clip.length(), (int64_t) std::llround (S().clip.sampleRate * fadeMs / 1000.0));
+        r = in ? RememberClip::Range { 0, n } : RememberClip::Range { S().clip.length() - n, S().clip.length() };
+    }
+    S().beginEdit();
+    if (in) RememberClip::fadeIn (S().clip, r); else RememberClip::fadeOut (S().clip, r);
+    afterEdit();
+}
+
+void RememberEditor::doNormalize (int mode)
+{
+    if (! needClip()) return;
+    static const double targets[] { -0.1, -1.0, -14.0, -16.0, -18.0, -23.0 };
+    if (mode < 0 || mode > 5) return;
+    S().beginEdit();
+    const auto r = whole();
+    const auto res = mode < 2 ? RememberClip::normalizePeak (S().clip, r, targets[mode])
+                              : RememberClip::normalizeLufs (S().clip, r, targets[mode], -0.1);
+    if (! res.ok)
+    {
+        S().undo();
+        setStatus ("Nothing to normalize (silence)");
+        return;
+    }
+    afterEdit();
+    setStatus ("Gain " + String (res.gainDb, 1) + " dB" + (res.limited ? "  (limited by the peak ceiling -0.1 dBFS)" : ""));
+}
+
+void RememberEditor::doUndo()
+{
+    if (S().undo()) { clipView.clearSelection(); afterEdit (true); }
+}
+
+void RememberEditor::doRedo()
+{
+    if (S().redo()) { clipView.clearSelection(); afterEdit (true); }
+}
+
+void RememberEditor::doPlay()
+{
+    auto& a = processor.getAudition();
+    if (a.isPlaying()) { a.stop(); return; }
+    if (! needClip()) return;
+    RememberClip::Range r;
+    int64_t start;
+    if (clipView.getSelection (r)) start = clipView.getMarker() >= r.a && clipView.getMarker() < r.b ? clipView.getMarker() : r.a;
+    else
+    {
+        r = { 0, S().clip.length() };
+        start = clipView.getMarker() >= 0 ? clipView.getMarker() : 0;
+    }
+    processor.publishClip();
+    a.play (start, r.a, r.b, loopBtn.getToggleState());
+}
+
+bool RememberEditor::handleKey (const KeyPress& k)
+{
+    const auto m = k.getModifiers();
+    const bool cmd = m.isCommandDown() || m.isCtrlDown();
+    const auto c = (juce::juce_wchar) CharacterFunctions::toLowerCase (k.getTextCharacter());
+    const int code = k.getKeyCode();
+    if (cmd && (code == 'C' || code == 'c')) { doCopy(); return true; }
+    if (cmd && (code == 'X' || code == 'x')) { doCut(); return true; }
+    if (cmd && (code == 'V' || code == 'v')) { doPaste(); return true; }
+    if (cmd && (code == 'Z' || code == 'z')) { if (m.isShiftDown()) doRedo(); else doUndo(); return true; }
+    if (cmd && (code == 'A' || code == 'a')) { if (S().hasClip()) clipView.setSelection (0, S().clip.length()); return true; }
+    if (code == KeyPress::deleteKey || code == KeyPress::backspaceKey) { doDelete(); return true; }
+    if (code == KeyPress::spaceKey) { doPlay(); return true; }
+    juce::ignoreUnused (c);
+    return false;
 }
 
 void RememberEditor::timerCallback()
@@ -268,19 +563,39 @@ void RememberEditor::timerCallback()
     const bool hold = processor.apvts.getRawParameterValue (ParamID::hold)->load() > 0.5f;
     if (hold != view.isHeld()) view.setHold (hold);
     view.setSnapMode (getChoice (ParamID::snap));
+    clipView.setSnapMode (getChoice (ParamID::snap));
+    processor.getAudition().collectGarbage();
 
     histBtn.setButtonText ("HISTORY  " + historyNames[jlimit (0, 4, getChoice (ParamID::history))].toUpperCase());
     snapBtn.setButtonText ("SNAP  " + snapNames[jlimit (0, 4, getChoice (ParamID::snap))].toUpperCase());
     holdBtn.getProperties().set ("active", hold);
     liveBtn.getProperties().set ("active", view.isLive());
     const bool sel = view.hasSelection();
-    saveBtn.getProperties().set ("active", sel);
-    saveBtn.setEnabled (sel);
-    dragBtn.setEnabled (sel);
-    for (Component* b : std::initializer_list<Component*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &saveBtn, &dragBtn }) b->repaint();
+    const bool clip = S().hasClip(), csel = clipView.hasSelection();
+    const bool playing = processor.getAudition().isPlaying();
+    saveHistBtn.getProperties().set ("active", sel);
+    saveHistBtn.setEnabled (sel);
+    dragHistBtn.setEnabled (sel);
+    toEditorBtn.setEnabled (sel);
+    toEditorBtn.getProperties().set ("active", sel);
+    for (auto* b : { &copyBtn, &cutBtn, &deleteBtn, &cropBtn }) b->setEnabled (csel);
+    for (auto* b : { &pasteBtn }) b->setEnabled (clip && ! S().clipboard.empty());
+    for (auto* b : { &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &playBtn, &loopBtn }) b->setEnabled (clip);
+    undoBtn.setEnabled (S().canUndo());
+    redoBtn.setEnabled (S().canRedo());
+    saveClipBtn.setEnabled (clip);
+    saveClipBtn.getProperties().set ("active", clip);
+    dragClipBtn.setEnabled (clip);
+    playBtn.setButtonText (playing ? "STOP" : "PLAY");
+    playBtn.getProperties().set ("active", playing);
+    loopBtn.getProperties().set ("active", loopBtn.getToggleState());
+    fadeLenBtn.setButtonText ("FADE  " + String (fadeMs) + " ms");
+    for (Component* b : std::initializer_list<Component*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &saveHistBtn, &dragHistBtn, &toEditorBtn,
+                                                            &copyBtn, &cutBtn, &pasteBtn, &deleteBtn, &cropBtn, &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn,
+                                                            &fadeLenBtn, &normBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &saveClipBtn, &dragClipBtn }) b->repaint();
 
     if (++infoTick % 8 == 0) refreshInfo();
-    if (statusTicks > 0 && --statusTicks == 0) repaint (R (0, 508, designW, 30));
+    if (statusTicks > 0 && --statusTicks == 0) repaint (R (0, 780, designW, 30));
 }
 
 Rectangle<int> RememberEditor::R (float x, float y, float w, float h) const
@@ -303,17 +618,31 @@ void RememberEditor::resized()
     bar16.setBounds (R (824, 80, 52, 40));
     fitBtn.setBounds (R (892, 80, 72, 40));
 
-    view.setBounds (R (16, 130, 948, 270));
+    view.setBounds (R (16, 130, 948, 220));
+    toEditorBtn.setBounds (R (16, 358, 150, 34));
+    saveHistBtn.setBounds (R (700, 358, 120, 34));
+    dragHistBtn.setBounds (R (828, 358, 136, 34));
 
-    projectEd.setBounds (R (16, 412, 250, 34));
-    typeBtn.setBounds (R (274, 412, 150, 34));
-    formBtn.setBounds (R (432, 412, 150, 34));
-    keyEd.setBounds (R (590, 412, 90, 34));
-    scaleBtn.setBounds (R (688, 412, 120, 34));
+    {
+        float x = 16.0f;
+        auto put = [&] (Button& b, float w) { b.setBounds (R (x, 404, w, 34)); x += w + 6.0f; };
+        put (copyBtn, 62); put (cutBtn, 54); put (pasteBtn, 62); put (deleteBtn, 68); put (cropBtn, 56); put (trimBtn, 56);
+        put (reverseBtn, 74); put (fadeInBtn, 70); put (fadeOutBtn, 76); put (fadeLenBtn, 88); put (normBtn, 92);
+        put (undoBtn, 56); put (redoBtn, 56);
+    }
+    clipView.setBounds (R (16, 446, 948, 190));
+    playBtn.setBounds (R (16, 644, 100, 36));
+    loopBtn.setBounds (R (124, 644, 80, 36));
+    saveClipBtn.setBounds (R (700, 644, 120, 36));
+    dragClipBtn.setBounds (R (828, 644, 136, 36));
 
-    folderBtn.setBounds (R (16, 458, 410, 44));
-    saveBtn.setBounds (R (700, 458, 120, 44));
-    dragBtn.setBounds (R (828, 458, 136, 44));
+    projectEd.setBounds (R (16, 690, 250, 34));
+    typeBtn.setBounds (R (274, 690, 150, 34));
+    formBtn.setBounds (R (432, 690, 150, 34));
+    keyEd.setBounds (R (590, 690, 90, 34));
+    scaleBtn.setBounds (R (688, 690, 120, 34));
+
+    folderBtn.setBounds (R (16, 734, 410, 44));
 
     const auto f = Font (rememberFont (14.0f * scale));
     projectEd.setFont (f);
@@ -360,24 +689,25 @@ void RememberEditor::paint (Graphics& g)
     g.setFont (Font (rememberFont (12.0f * scale, true)));
     g.drawText ("SELECT BARS", R (506, 80, 80, 40), Justification::centredRight);
 
+
     // Info rechts neben dem Ordner
     g.setColour (T.text);
     g.setFont (Font (rememberFont (13.0f * scale, true)));
-    g.drawText (infoText, R (444, 458, 250, 44), Justification::centred);
+    g.drawText (infoText, R (444, 734, 250, 44), Justification::centred);
 
     // Statuszeile
     if (statusTicks > 0)
     {
         g.setColour (T.textDim);
         g.setFont (Font (rememberFont (12.5f * scale)));
-        g.drawText (statusText, R (16, 512, 948, 22), Justification::centredLeft, true);
+        g.drawText (statusText, R (16, 786, 948, 22), Justification::centredLeft, true);
     }
     else
     {
         g.setColour (T.textDim.withAlpha (0.8f));
         g.setFont (Font (rememberFont (11.5f * scale)));
         g.drawText (String::fromUTF8 ("Click = start point   \xc2\xb7   drag = select   \xc2\xb7   double-click = bar   \xc2\xb7   wheel = zoom   \xc2\xb7   Ctrl/Cmd = no snap   \xc2\xb7   Esc = clear"),
-                    R (16, 512, 948, 22), Justification::centredLeft, true);
+                    R (16, 786, 948, 22), Justification::centredLeft, true);
     }
 }
 

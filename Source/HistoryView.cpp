@@ -108,6 +108,44 @@ bool HistoryView::getSelectionTempo (double& bpm, float& bpb) const
     return tempoAt (m, s, bpm, bpb);
 }
 
+bool HistoryView::grabClip (RememberClip::Clip& out) const
+{
+    int64_t s, e;
+    auto st = engine.storage();
+    if (st == nullptr || ! getSelection (s, e)) return false;
+
+    RememberClip::Clip c;
+    const double sr = engine.getSampleRate();
+    c.sampleRate = sr;
+    c.ch.assign ((size_t) st->numCh, std::vector<float> ((size_t) (e - s)));
+    std::vector<float*> ptr;
+    for (auto& v : c.ch) ptr.push_back (v.data());
+    if (! st->copyRange (s, e - s, ptr.data(), st->numCh)) return false;
+
+    // Tempo und Raster: ein Taktanfang als Position im Clip
+    std::vector<Meta> m;
+    st->readMeta (s, e, m);
+    double bpm; float bpb;
+    if (tempoAt (m, s, bpm, bpb))
+    {
+        c.bpm = bpm;
+        c.beatsPerBar = bpb;
+        const Meta* ref = nullptr;
+        for (const auto& x : m) { if (x.sample > s) break; if (x.flags & fPlaying) ref = &x; }
+        if (ref == nullptr) for (const auto& x : m) if (x.flags & fPlaying) { ref = &x; break; }
+        std::vector<GridPoint> g;
+        gridFromMeta (m, st->writtenNow(), sr, s, e, 1.0, g);
+        if (! g.empty() && ref != nullptr)
+        {
+            const double idx = std::fmod (g[0].ppq - ref->barStartPpq, (double) bpb);
+            const double beatInBar = idx < 0.0 ? idx + (double) bpb : idx;
+            c.gridOffset = (double) (g[0].sample - s) - beatInBar * sr * 60.0 / bpm;
+        }
+    }
+    out = std::move (c);
+    return true;
+}
+
 bool HistoryView::getSelectionBars (double& bars) const
 {
     int64_t s, e;

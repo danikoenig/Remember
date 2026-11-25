@@ -1,5 +1,7 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
+#include "Audition.h"
+#include "Clip.h"
 #include "Engine.h"
 
 namespace ParamID
@@ -50,6 +52,10 @@ public:
     void setStateInformation (const void*, int) override;
 
     RememberDSP::Engine& getEngine() { return engine; }
+    RememberClip::Session& getSession() { return session; }
+    RememberAudition::Player& getAudition() { return audition; }
+    // Nach jeder Aenderung des Editor-Clips aufrufen: gibt eine Kopie an den Audio-Thread zum Vorhoeren
+    void publishClip();
     juce::AudioProcessorValueTreeState apvts;
 
     static double historySecondsFor (int index);
@@ -62,6 +68,8 @@ private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 
     RememberDSP::Engine engine;
+    RememberClip::Session session;          // Editor-Clip: bleibt erhalten, auch wenn das Fenster geschlossen wird
+    RememberAudition::Player audition;
     std::atomic<float>* pHistory = nullptr;
     double sampleRate = 48000.0;
 
