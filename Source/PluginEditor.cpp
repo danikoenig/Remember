@@ -27,7 +27,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
 
     for (Button* b : std::initializer_list<Button*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &fitBtn, &bar1, &bar2, &bar4, &bar8, &bar16,
                                                        &typeBtn, &formBtn, &scaleBtn, &folderBtn, &toEditorBtn, &saveHistBtn, &dragHistBtn,
-                                                       &trimBtn, &reverseBtn, &fadeBtn, &normBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &rotateBtn, &importBtn, &saveClipBtn, &dragClipBtn })
+                                                       &trimBtn, &reverseBtn, &fadeBtn, &normBtn, &deleteBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &rotateBtn, &importBtn, &saveClipBtn, &dragClipBtn })
         addAndMakeVisible (b);
     loopBtn.setClickingTogglesState (true);
     addAndMakeVisible (projectEd);
@@ -47,12 +47,13 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     reverseBtn.setTooltip ("Reverse the selection, or the whole clip");
     fadeBtn.setTooltip ("Fade in / fade out over the selection. Without a selection the fade length is used. Click to choose");
     normBtn.setTooltip ("Normalize the selection, or the whole clip, to a peak or loudness target");
+    deleteBtn.setTooltip ("Empty the whole editor so you can load something new (Undo brings it back)");
     undoBtn.setTooltip ("Undo (Ctrl/Cmd+Z)");
     redoBtn.setTooltip ("Redo (Ctrl/Cmd+Shift+Z)");
     playBtn.setTooltip ("Listen to the editor through the plugin output (Space). Starts at the green marker");
     loopBtn.setTooltip ("Loop the playback");
-    wrapBtn.setTooltip ("Select the tail (the reverb after the loop) and press WRAP: it is folded back onto the start of the clip. The fade length fades out the tail end");
-    rotateBtn.setTooltip ("Select the tail (or set the green marker) and press ROTATE: it moves to the front, the length stays the same");
+    wrapBtn.setTooltip ("Select the tail (the reverb after the loop) and press FOLD TAIL: it is mixed onto the start of the clip, so the loop ends where the selection began. The fade length fades out the tail end");
+    rotateBtn.setTooltip ("Select the tail (or set the green marker) and press TO FRONT: it moves to the front, the length stays the same");
     importBtn.setTooltip ("Load a WAV, AIFF or FLAC file into the editor. You can also drop a file onto the plugin");
     saveClipBtn.setTooltip ("Write the edited clip as WAV into the export folder");
     dragClipBtn.setTooltip ("Drag the edited clip as a WAV file into your DAW or the Finder");
@@ -142,6 +143,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
         showMenu (normBtn, "Normalize to", { "Peak -0.1 dB", "Peak -1 dB", "-14 LUFS", "-16 LUFS", "-18 LUFS", "-23 LUFS" }, -1,
                   [this] (int i) { doNormalize (i); });
     };
+    deleteBtn.onClick = [this] { doClear(); };
     undoBtn.onClick = [this] { doUndo(); };
     redoBtn.onClick = [this] { doRedo(); };
     playBtn.onClick = [this] { doPlay(); };
@@ -534,7 +536,7 @@ void RememberEditor::doWrap()
     clipView.clearSelection();
     clipView.setMarker (-1);
     afterEdit (true);
-    setStatus ("Wrapped: " + String ((double) r.length() / S().clip.sampleRate, 2) + " s tail folded back onto the start");
+    setStatus ("Tail folded: " + String ((double) r.length() / S().clip.sampleRate, 2) + " s tail folded back onto the start");
 }
 
 void RememberEditor::doRotate()
@@ -547,7 +549,7 @@ void RememberEditor::doRotate()
     if (clipView.getSelection (r)) pos = r.a;
     if (pos <= 0 || pos >= S().clip.length())
     {
-        setStatus ("ROTATE: select the tail (or set the green marker). Its start becomes the new start of the clip");
+        setStatus ("TO FRONT: select the tail (or set the green marker). Its start becomes the new start of the clip");
         return;
     }
     S().beginEdit();
@@ -555,7 +557,7 @@ void RememberEditor::doRotate()
     clipView.clearSelection();
     clipView.setMarker (-1);
     afterEdit (true);
-    setStatus ("Rotated: " + String ((double) (S().clip.length() - pos) / S().clip.sampleRate, 2) + " s moved to the front");
+    setStatus ("Moved to front: " + String ((double) (S().clip.length() - pos) / S().clip.sampleRate, 2) + " s moved to the front");
 }
 
 bool RememberEditor::isInterestedInFileDrag (const StringArray& files)
@@ -635,7 +637,7 @@ void RememberEditor::showClipMenu()
     m.addItem (1, "Copy", sel);
     m.addItem (2, "Cut", sel);
     m.addItem (3, "Paste", paste);
-    m.addItem (4, "Delete", sel);
+    m.addItem (4, "Delete selection", sel);
     m.addItem (5, "Crop to selection", sel);
     m.addSeparator();
     m.addItem (6, "Select all");
@@ -653,6 +655,20 @@ void RememberEditor::showClipMenu()
             default: break;
         }
     });
+}
+
+void RememberEditor::doClear()
+{
+    if (! S().hasClip()) return;
+    processor.getAudition().stop();
+    S().beginEdit();
+    const double sr = S().clip.sampleRate;
+    S().clip = RememberClip::Clip();
+    S().clip.sampleRate = sr;
+    clipView.clearSelection();
+    clipView.setMarker (-1);
+    afterEdit (true);
+    setStatus ("Editor emptied. Select audio in the history and press TO EDITOR, or drop a file");
 }
 
 void RememberEditor::doPlay()
@@ -711,7 +727,7 @@ void RememberEditor::timerCallback()
     dragHistBtn.setEnabled (sel);
     toEditorBtn.setEnabled (sel);
     toEditorBtn.getProperties().set ("active", sel);
-        for (auto* b : { &trimBtn, &reverseBtn, &fadeBtn, &normBtn, &playBtn, &loopBtn }) b->setEnabled (clip);
+        for (auto* b : { &trimBtn, &reverseBtn, &fadeBtn, &normBtn, &deleteBtn, &playBtn, &loopBtn }) b->setEnabled (clip);
     rotateBtn.setEnabled (clip);
     wrapBtn.setEnabled (csel);
     undoBtn.setEnabled (S().canUndo());
@@ -724,7 +740,7 @@ void RememberEditor::timerCallback()
     loopBtn.getProperties().set ("active", loopBtn.getToggleState());
     fadeBtn.setButtonText ("FADE  " + String (fadeMs) + " ms");
     for (Component* b : std::initializer_list<Component*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &saveHistBtn, &dragHistBtn, &toEditorBtn,
-                                                            &trimBtn, &reverseBtn, &fadeBtn, &normBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &rotateBtn, &importBtn, &saveClipBtn, &dragClipBtn }) b->repaint();
+                                                            &trimBtn, &reverseBtn, &fadeBtn, &normBtn, &deleteBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &rotateBtn, &importBtn, &saveClipBtn, &dragClipBtn }) b->repaint();
 
     if (++infoTick % 8 == 0) refreshInfo();
     if (statusTicks > 0 && --statusTicks == 0) repaint (R (0, 780, designW, 30));
@@ -759,7 +775,7 @@ void RememberEditor::resized()
         float x = 16.0f;
         auto put = [&] (Button& b, float w) { b.setBounds (R (x, 404, w, 34)); x += w + 6.0f; };
         put (trimBtn, 70); put (reverseBtn, 90); put (fadeBtn, 120); put (normBtn, 120);
-        put (wrapBtn, 80); put (rotateBtn, 90); put (importBtn, 90);
+        put (wrapBtn, 96); put (rotateBtn, 96); put (importBtn, 80); put (deleteBtn, 80);
         x = 964.0f - 56.0f * 2 - 6.0f;
         put (undoBtn, 56); put (redoBtn, 56);
     }

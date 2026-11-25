@@ -1,5 +1,9 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.0.2
+- **Names:** WRAP is now FOLD TAIL, ROTATE is now TO FRONT
+- **DELETE:** empties the whole editor (Undo brings it back); deleting a selection is in the right-click menu and on the Delete key
+
 ### v1.0.1
 - **Trim:** after TRIM the first bar line sits on the new start of the clip
 
