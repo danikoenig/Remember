@@ -9,6 +9,8 @@ namespace
     const StringArray noteNames { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
 }
 
+static const char* const normNames[] { "Peak -0.1 dB", "Peak -1 dB", "-14 LUFS", "-16 LUFS", "-18 LUFS", "-23 LUFS", "-18 dB RMS", "-20 dB RMS" };
+
 RememberEditor::RememberEditor (RememberProcessor& p)
     : AudioProcessorEditor (&p), processor (p), view (p.getEngine()), clipView (p)
 {
@@ -45,8 +47,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     fadeInBtn.setTooltip ("Fade in over the selection (without a selection: over the fade length at the start). Length and shape: menu top right");
     fadeOutBtn.setTooltip ("Fade out over the selection (without a selection: over the fade length at the end). Length and shape: menu top right");
     menuBtn.setTooltip ("Settings: export folder, fade length and shape, bit depth");
-    normBtn.setTooltip ("Normalize the selection, or the whole clip, to a peak or loudness target");
-    clearBtn.setTooltip ("Empty the whole editor so you can load something new (Undo brings it back)");
+        clearBtn.setTooltip ("Empty the whole editor so you can load something new (Undo brings it back)");
     keyBtn.setTooltip ("Key and scale, written into the file name");
     nameLoopBtn.setTooltip ("On: the word Loop is written into the file name");
     undoBtn.setTooltip ("Undo (Ctrl/Cmd+Z)");
@@ -104,6 +105,8 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     };
     menuBtn.onClick = [this] { showSettingsMenu(); };
     RememberExport::bitDepth() = processor.getProp (PropID::bits, "24").getIntValue();
+    RememberExport::takeDigits() = jlimit (2, 4, processor.getProp (PropID::takeDigits, "2").getIntValue());
+    applyTooltipSetting();
     saveHistBtn.onClick = [this] { saveHistory(); };
     dragHistBtn.prepareFile = [this] { return prepareHistoryDrag(); };
     saveClipBtn.onClick = [this] { saveClip(); };
@@ -115,11 +118,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     fadeInBtn.onClick = [this] { doFade (true); };
     fadeOutBtn.onClick = [this] { doFade (false); };
     clipView.onContext = [this] { showClipMenu(); };
-    normBtn.onClick = [this]
-    {
-        showMenu (normBtn, "Normalize to", { "Peak -0.1 dB", "Peak -1 dB", "-14 LUFS", "-16 LUFS", "-18 LUFS", "-23 LUFS" }, -1,
-                  [this] (int i) { doNormalize (i); });
-    };
+    normBtn.onClick = [this] { doNormalize (normMode()); };
     clearBtn.onClick = [this] { doClear(); };
     undoBtn.onClick = [this] { doUndo(); };
     redoBtn.onClick = [this] { doRedo(); };
@@ -251,12 +250,13 @@ void RememberEditor::refreshInfo()
     String s;
     if (meta.bpm > 1.0) s << String (meta.bpm, std::abs (meta.bpm - std::round (meta.bpm)) < 0.05 ? 0 : 1) << " BPM";
     else s << "NO TEMPO";
-    s << String::fromUTF8 ("   \xc2\xb7   ") << "TAKE " << String (take).paddedLeft ('0', 2);
+    s << String::fromUTF8 ("   \xc2\xb7   ") << "TAKE " << String (take).paddedLeft ('0', RememberExport::takeDigits());
     infoText = s;
 
     const auto key = processor.getProp (PropID::key), scale = processor.getProp (PropID::scale);
     keyBtn.setButtonText (key.isEmpty() ? String ("KEY  -") : "KEY  " + key.toUpperCase() + (scale == "Minor" ? " MINOR" : scale == "Major" ? " MAJOR" : ""));
     nameLoopBtn.getProperties().set ("active", nameLoopBtn.getToggleState());
+    normBtn.setTooltip (String ("Normalize the whole clip to ") + normNames[normMode()] + ". Change the target: menu top right");
     menuBtn.setTooltip ("Settings. Export folder: " + currentFolder().getFullPathName());
     repaint (R (16, 352, 520, 36));
 }
@@ -431,13 +431,13 @@ void RememberEditor::doCrop()
 void RememberEditor::doTrim()
 {
     if (! needClip()) return;
-    if (RememberClip::findNonSilent (S().clip, -60.0f).empty())
+    if (RememberClip::findNonSilent (S().clip, trimThresholdDb()).empty())
     {
         setStatus ("The clip is silent, nothing to trim");
         return;
     }
     S().beginEdit();
-    RememberClip::trimSilence (S().clip, -60.0f);
+    RememberClip::trimSilence (S().clip, trimThresholdDb());
     S().clip.gridOffset = 0.0;      // Takt 1 liegt auf dem neuen Anfang, sonst bleibt am Loop-Beginn ein Rest Stille im Raster
     clipView.clearSelection();
     clipView.setMarker (-1);
@@ -469,12 +469,13 @@ void RememberEditor::doFade (bool in)
 void RememberEditor::doNormalize (int mode)
 {
     if (! needClip()) return;
-    static const double targets[] { -0.1, -1.0, -14.0, -16.0, -18.0, -23.0 };
-    if (mode < 0 || mode > 5) return;
+    static const double targets[] { -0.1, -1.0, -14.0, -16.0, -18.0, -23.0, -18.0, -20.0 };
+    if (mode < 0 || mode > 7) return;
     S().beginEdit();
     const auto r = whole();
     const auto res = mode < 2 ? RememberClip::normalizePeak (S().clip, r, targets[mode])
-                              : RememberClip::normalizeLufs (S().clip, r, targets[mode], -0.1);
+                   : mode < 6 ? RememberClip::normalizeLufs (S().clip, r, targets[mode], -0.1)
+                              : RememberClip::normalizeRms (S().clip, r, targets[mode], -0.1);
     if (! res.ok)
     {
         S().undo();
@@ -582,6 +583,21 @@ void RememberEditor::importFile (const File& f)
     setStatus ("Imported  " + f.getFileName() + (bpm > 1.0 ? "  (grid from the host tempo, bar 1 = file start)" : ""));
 }
 
+int RememberEditor::normMode() const
+{
+    return jlimit (0, 7, processor.getProp (PropID::normMode, "4").getIntValue());
+}
+
+float RememberEditor::trimThresholdDb() const
+{
+    return (float) jlimit (-90, -20, processor.getProp (PropID::trimDb, "-60").getIntValue());
+}
+
+void RememberEditor::applyTooltipSetting()
+{
+    tooltip.setMillisecondsBeforeTipAppears (processor.getProp (PropID::tooltips, "1") == "0" ? 100000000 : 700);
+}
+
 int RememberEditor::fadeLengthMs() const
 {
     return jlimit (1, 5000, processor.getProp (PropID::fadeMs, "25").getIntValue());
@@ -598,21 +614,32 @@ void RememberEditor::showSettingsMenu()
     static const char* shapes[] { "Smooth (S-curve)", "Linear", "Equal power", "Exponential" };
     static const int depths[] { 16, 24, 32 };
 
-    PopupMenu m, len, shp, bits;
+    static const int trims[] { -80, -70, -60, -50, -40, -30 };
+    static const int digitsList[] { 2, 3, 4 };
+
+    PopupMenu m, len, shp, bits, nrm, trm, dig;
     for (int i = 0; i < 7; ++i) len.addItem (100 + i, String (lengths[i]) + " ms", true, lengths[i] == fadeLengthMs());
     for (int i = 0; i < 4; ++i) shp.addItem (200 + i, shapes[i], true, i == (int) fadeShape());
     for (int i = 0; i < 3; ++i) bits.addItem (300 + i, String (depths[i]) + (depths[i] == 32 ? " bit float" : " bit"), true, depths[i] == RememberExport::bitDepth());
+    for (int i = 0; i < 8; ++i) nrm.addItem (400 + i, normNames[i], true, i == normMode());
+    for (int i = 0; i < 6; ++i) trm.addItem (500 + i, String (trims[i]) + " dB", true, trims[i] == (int) trimThresholdDb());
+    for (int i = 0; i < 3; ++i) dig.addItem (600 + i, "T" + String (1).paddedLeft ('0', digitsList[i]) + "  (" + String (digitsList[i]) + " digits)", true, digitsList[i] == RememberExport::takeDigits());
 
     m.addSectionHeader ("Export");
     m.addItem (1, "Export folder...  " + currentFolder().getFileName());
     m.addItem (2, "Reset folder to default", processor.getProp (PropID::folder).isNotEmpty());
     m.addSubMenu ("WAV bit depth", bits);
+    m.addSubMenu ("Take number in file name", dig);
     m.addSeparator();
-    m.addSectionHeader ("Fades");
+    m.addSectionHeader ("Editing");
+    m.addSubMenu ("Normalize target", nrm);
+    m.addSubMenu ("Trim threshold", trm);
     m.addSubMenu ("Fade length", len);
     m.addSubMenu ("Fade shape", shp);
+    m.addSeparator();
+    m.addItem (7, "Show tooltips", true, processor.getProp (PropID::tooltips, "1") != "0");
 
-    m.showMenuAsync (PopupMenu::Options().withTargetComponent (&menuBtn).withMinimumWidth (240),
+    m.showMenuAsync (PopupMenu::Options().withTargetComponent (&menuBtn).withMinimumWidth (260),
                      [safe = SafePointer<RememberEditor> (this)] (int r)
                      {
                          if (safe == nullptr || r <= 0) return;
@@ -621,6 +648,10 @@ void RememberEditor::showSettingsMenu()
                          else if (r == 2) { p.setProp (PropID::folder, {}); safe->refreshInfo(); safe->setStatus ("Export folder: default"); }
                          else if (r >= 100 && r < 107) { p.setProp (PropID::fadeMs, String (lengths[r - 100])); safe->setStatus ("Fade length " + String (lengths[r - 100]) + " ms"); }
                          else if (r >= 200 && r < 204) { p.setProp (PropID::fadeShape, String (r - 200)); safe->setStatus (String ("Fade shape: ") + shapes[r - 200]); }
+                         else if (r == 7) { p.setProp (PropID::tooltips, p.getProp (PropID::tooltips, "1") == "0" ? "1" : "0"); safe->applyTooltipSetting(); }
+                         else if (r >= 400 && r < 408) { p.setProp (PropID::normMode, String (r - 400)); safe->refreshInfo(); safe->setStatus (String ("Normalize target: ") + normNames[r - 400]); }
+                         else if (r >= 500 && r < 506) { p.setProp (PropID::trimDb, String (trims[r - 500])); safe->setStatus ("Trim threshold " + String (trims[r - 500]) + " dB"); }
+                         else if (r >= 600 && r < 603) { RememberExport::takeDigits() = digitsList[r - 600]; p.setProp (PropID::takeDigits, String (digitsList[r - 600])); safe->refreshInfo(); safe->setStatus ("Take number digits: " + String (digitsList[r - 600])); }
                          else if (r >= 300 && r < 303) { RememberExport::bitDepth() = depths[r - 300]; p.setProp (PropID::bits, String (depths[r - 300])); safe->setStatus ("WAV bit depth " + String (depths[r - 300])); }
                      });
 }

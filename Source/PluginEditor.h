@@ -103,6 +103,9 @@ private:
     void showClipMenu();
     void showSettingsMenu();
     int fadeLengthMs() const;
+    int normMode() const;
+    float trimThresholdDb() const;
+    void applyTooltipSetting();
     RememberClip::FadeShape fadeShape() const;
     void showKeyMenu();
     void doClear();

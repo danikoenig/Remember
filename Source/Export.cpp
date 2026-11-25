@@ -34,7 +34,7 @@ namespace RememberExport
 
     String fileName (const String& stem, int take)
     {
-        return stem + "_T" + String (take).paddedLeft ('0', 2) + ".wav";
+        return stem + "_T" + String (take).paddedLeft ('0', takeDigits()) + ".wav";
     }
 
     int nextTake (const File& folder, const String& stem)
@@ -49,6 +49,7 @@ namespace RememberExport
     }
 
     int& bitDepth() { static int b = 24; return b; }
+    int& takeDigits() { static int d = 2; return d; }
 
     File defaultFolder()
     {

@@ -22,6 +22,8 @@ namespace RememberExport
 
     // Bittiefe fuer den Export: 16, 24 oder 32 (Float). Standard 24
     int& bitDepth();
+    // Stellen der Take-Nummer (2 = T01, 3 = T001, 4 = T0001)
+    int& takeDigits();
 
     // Schreibt [start, start+len) als WAV (bitDepth()). Leerer String = ok, sonst Fehlertext
     juce::String writeWav (const RememberDSP::Storage&, int64_t start, int64_t len, double sampleRate, const juce::File& file);

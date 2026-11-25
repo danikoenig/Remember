@@ -62,6 +62,9 @@ namespace RememberClip
     NormalizeResult normalizePeak (Clip&, Range r, double targetDb);
     // Normalisiert auf Lautheit (LUFS). Die Verstaerkung wird so begrenzt, dass der Spitzenwert ceilingDb nicht ueberschreitet
     NormalizeResult normalizeLufs (Clip&, Range r, double targetLufs, double ceilingDb);
+    // Normalisiert auf den RMS-Pegel (dBFS, alle Kanaele zusammen), Spitzen-Obergrenze wie bei LUFS
+    NormalizeResult normalizeRms (Clip&, Range r, double targetDb, double ceilingDb);
+    double rmsDb (const Clip&, Range r);
 
     // Clip mit Undo/Redo und interner Zwischenablage. Nur Oberflaeche (message thread)
     class Session

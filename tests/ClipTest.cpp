@@ -181,6 +181,11 @@ int main (int argc, char** argv)
         CHECK (r2.ok && r2.limited);
         CHECK (near (20.0 * std::log10 (peakAbs (p, { 0, p.length() })), -6.0, 0.01));
 
+        Clip qr = sine (3.0, 440.0, 0.1);
+        CHECK (near (rmsDb (qr, { 0, qr.length() }), 20.0 * std::log10 (0.1 / std::sqrt (2.0)), 0.05));
+        auto r3 = normalizeRms (qr, { 0, qr.length() }, -18.0, -0.1);
+        CHECK (r3.ok && near (rmsDb (qr, { 0, qr.length() }), -18.0, 0.02));
+
         if (argc > 1)   // Referenzdatei fuer den Vergleich mit ffmpeg ebur128 (float32 stereo interleaved, 48 kHz)
         {
             Clip ref = sine (6.0, 220.0, 0.2);

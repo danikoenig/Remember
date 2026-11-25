@@ -1,5 +1,10 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.2.0
+- **Settings menu extended:** NORMALIZE target (peak, -14 / -16 / -18 / -23 LUFS, -18 / -20 dB RMS; default -18 LUFS), TRIM threshold (-80 to -30 dB), digits of the take number (T01 / T001 / T0001), tooltips on or off
+- NORMALIZE now applies the chosen target directly with one click
+- TRIM adds a 1 ms fade at both ends, so a high threshold cannot click
+
 ### v1.1.1
 - **Settings menu** (three bars, top right): export folder (choose / reset), WAV bit depth (16 / 24 / 32 float), fade length, fade shape (smooth, linear, equal power, exponential)
 - FADE IN / FADE OUT now simply use these settings, no pop-up on the buttons; FOLDER button removed from the main window

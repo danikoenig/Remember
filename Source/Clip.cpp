@@ -116,7 +116,11 @@ namespace RememberClip
     void trimSilence (Clip& c, float thresholdDb)
     {
         const auto r = findNonSilent (c, thresholdDb);
-        if (! r.empty()) crop (c, r);
+        if (r.empty()) return;
+        crop (c, r);
+        // Winziger Fade (1 ms) an beiden Enden, damit bei hoher Schwelle kein Klick entsteht
+        const int64_t n = std::min<int64_t> ((int64_t) std::llround (c.sampleRate * 0.001), c.length() / 2);
+        if (n >= 2) { fadeIn (c, { 0, n }, FadeShape::Linear); fadeOut (c, { c.length() - n, c.length() }, FadeShape::Linear); }
     }
 
     void wrap (Clip& c, Range r)
@@ -265,6 +269,32 @@ namespace RememberClip
         if (pk < 1.0e-9f) return res;
         res.gainDb = targetDb - 20.0 * std::log10 ((double) pk);
         applyGain (c, r, (float) std::pow (10.0, res.gainDb / 20.0));
+        res.ok = true;
+        return res;
+    }
+
+    double rmsDb (const Clip& c, Range r)
+    {
+        r = clampRange (c, r);
+        if (r.empty() || c.ch.empty()) return -std::numeric_limits<double>::infinity();
+        double sum = 0.0;
+        for (const auto& v : c.ch)
+            for (int64_t i = r.a; i < r.b; ++i) sum += (double) v[(size_t) i] * (double) v[(size_t) i];
+        const double ms = sum / ((double) r.length() * (double) c.ch.size());
+        return ms > 1.0e-18 ? 10.0 * std::log10 (ms) : -std::numeric_limits<double>::infinity();
+    }
+
+    NormalizeResult normalizeRms (Clip& c, Range r, double targetDb, double ceilingDb)
+    {
+        NormalizeResult res;
+        const double l = rmsDb (c, r);
+        const float pk = peakAbs (c, r);
+        if (! std::isfinite (l) || pk < 1.0e-9f) return res;
+        double g = targetDb - l;
+        const double maxG = ceilingDb - 20.0 * std::log10 ((double) pk);
+        if (g > maxG) { g = maxG; res.limited = true; }
+        res.gainDb = g;
+        applyGain (c, r, (float) std::pow (10.0, g / 20.0));
         res.ok = true;
         return res;
     }

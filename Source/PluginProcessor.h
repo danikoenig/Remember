@@ -22,6 +22,10 @@ namespace PropID
     inline constexpr const char* fadeMs  = "fadeMs";
     inline constexpr const char* fadeShape = "fadeShape";   // 0 Smooth, 1 Linear, 2 Equal power, 3 Exponential
     inline constexpr const char* bits    = "bits";
+    inline constexpr const char* normMode = "normMode";  // Index in der Normalize-Liste
+    inline constexpr const char* trimDb  = "trimDb";
+    inline constexpr const char* takeDigits = "takeDigits";
+    inline constexpr const char* tooltips = "tooltips";   // "0" = aus
 }
 
 class RememberProcessor : public juce::AudioProcessor,
