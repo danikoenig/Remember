@@ -1,5 +1,13 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.3.0
+- **One grid:** history row, toolbar and playback row share 10 equal columns. SAVE and DRAG WAV have the same size and position in both places
+- Toolbar (10 buttons, larger): IMPORT, TO EDITOR, TRIM, FADE IN, FADE OUT, NORMALIZE, REVERSE, FOLD TAIL, UNDO, REDO
+- CLEAR moved next to PLAY and LOOP below the editor
+- One row below the editor: PLAY, LOOP, CLEAR, NAME box (smaller), KEY, + LOOP (writes Loop into the file name), SAVE, DRAG WAV. The extra row is gone, the window is lower
+- Hint line shows the history or the editor controls depending on where the mouse is (right click = copy, cut, paste works in the editor only)
+- SELECT BARS centred, disabled buttons keep a clearer outline
+
 ### v1.2.0
 - **Settings menu extended:** NORMALIZE target (peak, -14 / -16 / -18 / -23 LUFS, -18 / -20 dB RMS; default -18 LUFS), TRIM threshold (-80 to -30 dB), digits of the take number (T01 / T001 / T0001), tooltips on or off
 - NORMALIZE now applies the chosen target directly with one click

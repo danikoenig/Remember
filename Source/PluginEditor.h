@@ -112,7 +112,7 @@ private:
     void doPlay();
     bool handleKey (const juce::KeyPress&);
 
-    static constexpr float designW = 980.0f, designH = 772.0f;
+    static constexpr float designW = 980.0f, designH = 730.0f;
     float frameWidth() const noexcept { return 4.0f * scale; }
 
     RememberProcessor& processor;
@@ -137,7 +137,8 @@ private:
 
     // Metadaten und Ordner
     juce::TextEditor projectEd;
-    juce::TextButton keyBtn, nameLoopBtn { "LOOP IN NAME" };
+    juce::TextButton keyBtn, nameLoopBtn { "+ LOOP" };
+    bool hintEditor = false;
 
     juce::TooltipWindow tooltip { this, 700 };
     std::unique_ptr<juce::FileChooser> chooser;

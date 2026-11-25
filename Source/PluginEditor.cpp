@@ -49,7 +49,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     menuBtn.setTooltip ("Settings: export folder, fade length and shape, bit depth");
         clearBtn.setTooltip ("Empty the whole editor so you can load something new (Undo brings it back)");
     keyBtn.setTooltip ("Key and scale, written into the file name");
-    nameLoopBtn.setTooltip ("On: the word Loop is written into the file name");
+    nameLoopBtn.setTooltip ("On: the word Loop is written into the file name (+ LOOP)");
     undoBtn.setTooltip ("Undo (Ctrl/Cmd+Z)");
     redoBtn.setTooltip ("Redo (Ctrl/Cmd+Shift+Z)");
     playBtn.setTooltip ("Listen to the editor through the plugin output (Space). Starts at the green marker");
@@ -94,7 +94,8 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     };
     barBtn (bar1, 1); barBtn (bar2, 2); barBtn (bar4, 4); barBtn (bar8, 8); barBtn (bar16, 16);
 
-    fillTextEditor (projectEd, PropID::project, "Project");
+    fillTextEditor (projectEd, PropID::project, "NAME");
+    projectEd.setTooltip ("File name (project name). BPM, key and take number are added automatically");
     keyBtn.onClick = [this] { showKeyMenu(); };
     nameLoopBtn.setClickingTogglesState (true);
     nameLoopBtn.setToggleState (processor.getProp (PropID::form, "Loop") != "-", dontSendNotification);
@@ -258,7 +259,7 @@ void RememberEditor::refreshInfo()
     nameLoopBtn.getProperties().set ("active", nameLoopBtn.getToggleState());
     normBtn.setTooltip (String ("Normalize the whole clip to ") + normNames[normMode()] + ". Change the target: menu top right");
     menuBtn.setTooltip ("Settings. Export folder: " + currentFolder().getFullPathName());
-    repaint (R (16, 352, 520, 36));
+    repaint (R (16, 352, 520, 40));
 }
 
 void RememberEditor::saveHistory()
@@ -771,6 +772,8 @@ void RememberEditor::timerCallback()
     snapBtn.setButtonText ("SNAP  " + snapNames[jlimit (0, 4, getChoice (ParamID::snap))].toUpperCase());
     holdBtn.getProperties().set ("active", hold);
     liveBtn.getProperties().set ("active", view.isLive());
+    const bool overEditor = clipView.isMouseOver (true);
+    if (overEditor != hintEditor) { hintEditor = overEditor; repaint (R (0, 696, designW, 30)); }
     const bool sel = view.hasSelection();
     const bool clip = S().hasClip(), csel = clipView.hasSelection();
     const bool playing = processor.getAudition().isPlaying();
@@ -793,7 +796,7 @@ void RememberEditor::timerCallback()
                                                             &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &clearBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &importBtn, &saveClipBtn, &dragClipBtn, &keyBtn, &nameLoopBtn }) b->repaint();
 
     if (++infoTick % 8 == 0) refreshInfo();
-    if (statusTicks > 0 && --statusTicks == 0) repaint (R (0, 736, designW, 30));
+    if (statusTicks > 0 && --statusTicks == 0) repaint (R (0, 696, designW, 30));
 }
 
 Rectangle<int> RememberEditor::R (float x, float y, float w, float h) const
@@ -818,25 +821,30 @@ void RememberEditor::resized()
 
     // Spalten rechts (SAVE / DRAG WAV / FOLDER) liegen in allen Zeilen uebereinander
     view.setBounds (R (16, 130, 948, 214));
-    saveHistBtn.setBounds (R (700, 352, 120, 36));
-    dragHistBtn.setBounds (R (828, 352, 136, 36));
+    // Raster: 10 gleich breite Spalten. Alle Reihen (Verlauf, Werkzeuge, Wiedergabe) richten sich danach aus
+    const float gap = 6.0f, cw = (948.0f - gap * 9.0f) / 10.0f;
+    auto colX = [&] (int i) { return 16.0f + (float) i * (cw + gap); };
+    auto span = [&] (int n) { return cw * (float) n + gap * (float) (n - 1); };
+
+    saveHistBtn.setBounds (R (colX (8), 352, cw, 40));
+    dragHistBtn.setBounds (R (colX (9), 352, cw, 40));
 
     {
         // Eine Zeile, alle Knoepfe gleich gross, in Arbeitsreihenfolge
-        Button* order[] { &importBtn, &toEditorBtn, &trimBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &reverseBtn, &wrapBtn, &undoBtn, &redoBtn, &clearBtn };
-        const float gap = 6.0f, w = (948.0f - gap * 10.0f) / 11.0f;
-        float x = 16.0f;
-        for (auto* b : order) { b->setBounds (R (x, 396, w, 36)); x += w + gap; }
+        Button* order[] { &importBtn, &toEditorBtn, &trimBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &reverseBtn, &wrapBtn, &undoBtn, &redoBtn };
+        for (int i = 0; i < 10; ++i) order[i]->setBounds (R (colX (i), 400, cw, 40));
     }
-    clipView.setBounds (R (16, 440, 948, 200));
-    playBtn.setBounds (R (16, 648, 100, 36));
-    loopBtn.setBounds (R (124, 648, 80, 36));
-    saveClipBtn.setBounds (R (700, 648, 120, 36));
-    dragClipBtn.setBounds (R (828, 648, 136, 36));
+    clipView.setBounds (R (16, 448, 948, 196));
 
-    projectEd.setBounds (R (16, 692, 300, 36));
-    keyBtn.setBounds (R (324, 692, 170, 36));
-    nameLoopBtn.setBounds (R (502, 692, 150, 36));
+    // Unter dem Editor: PLAY, LOOP, CLEAR | Name, Tonart, +LOOP | SAVE, DRAG WAV
+    playBtn.setBounds (R (colX (0), 652, cw, 40));
+    loopBtn.setBounds (R (colX (1), 652, cw, 40));
+    clearBtn.setBounds (R (colX (2), 652, cw, 40));
+    projectEd.setBounds (R (colX (3), 652, span (2), 40));
+    keyBtn.setBounds (R (colX (5), 652, span (2), 40));
+    nameLoopBtn.setBounds (R (colX (7), 652, cw, 40));
+    saveClipBtn.setBounds (R (colX (8), 652, cw, 40));
+    dragClipBtn.setBounds (R (colX (9), 652, cw, 40));
     menuBtn.setBounds (R (916, 14, 48, 40));
 
     const auto f = Font (rememberFont (14.0f * scale));
@@ -882,36 +890,38 @@ void RememberEditor::paint (Graphics& g)
     // Beschriftung "BARS" vor den Taktknoepfen
     g.setColour (T.textDim);
     g.setFont (Font (rememberFont (12.0f * scale, true)));
-    g.drawText ("SELECT BARS", R (506, 80, 80, 40), Justification::centredRight);
+    g.drawText ("SELECT BARS", R (492, 80, 100, 40), Justification::centred);
 
 
     if (dropping)
     {
         g.setColour (T.accent.withAlpha (0.12f));
-        g.fillRoundedRectangle (R (16, 440, 948, 200).toFloat(), T.radius);
+        g.fillRoundedRectangle (R (16, 448, 948, 196).toFloat(), T.radius);
         g.setColour (T.accent);
         g.setFont (Font (rememberFont (16.0f * scale, true)));
-        g.drawText ("Drop to load into the editor", R (16, 440, 948, 200), Justification::centred);
+        g.drawText ("Drop to load into the editor", R (16, 448, 948, 196), Justification::centred);
     }
 
     // Info rechts neben dem Ordner
     g.setColour (T.text);
     g.setFont (Font (rememberFont (13.0f * scale, true)));
-    g.drawText (infoText, R (16, 352, 520, 36), Justification::centredLeft);
+    g.drawText (infoText, R (16, 352, 520, 40), Justification::centredLeft);
 
     // Statuszeile
     if (statusTicks > 0)
     {
         g.setColour (T.accent);
         g.setFont (Font (rememberFont (12.5f * scale)));
-        g.drawText (statusText, R (16, 740, 948, 22), Justification::centredLeft, true);
+        g.drawText (statusText, R (16, 700, 948, 22), Justification::centredLeft, true);
     }
     else
     {
         g.setColour (T.textDim.withAlpha (0.8f));
         g.setFont (Font (rememberFont (11.5f * scale)));
-        g.drawText (String::fromUTF8 ("Click = start point   \xc2\xb7   drag = select   \xc2\xb7   double-click = bar   \xc2\xb7   wheel = zoom   \xc2\xb7   right click = copy, cut, paste   \xc2\xb7   Esc = clear"),
-                    R (16, 740, 948, 22), Justification::centredLeft, true);
+        g.drawText (hintEditor
+            ? String::fromUTF8 ("EDITOR:  click = marker (play and paste position)   \xc2\xb7   drag = select   \xc2\xb7   double-click = bar   \xc2\xb7   right click = copy, cut, paste   \xc2\xb7   Space = play   \xc2\xb7   Esc = clear")
+            : String::fromUTF8 ("HISTORY:  click = start point   \xc2\xb7   drag = select   \xc2\xb7   double-click = bar   \xc2\xb7   wheel = zoom   \xc2\xb7   Esc = clear"),
+                    R (16, 700, 948, 22), Justification::centredLeft, true);
     }
 }
 
