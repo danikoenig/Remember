@@ -1,6 +1,6 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
-### v1.4.1
+### v1.4.2
 - **Align grid:** new menu item "Align grid to selection". Plugins in front of Remember (e.g. a drum machine with latency) delay the audio, but the host does not tell Remember. Select 2 or more bars with a steady kick in the history and align: Remember measures how far the kicks lie behind the beat lines and moves the grid by exactly that. Bar lines, snap, BARS buttons, SAVE and DRAG WAV then start on the kick. The offset is stored per plugin instance; "Reset grid offset" sets it back to 0
 - Measurement is sample accurate (tests: 70 ms offset found within 1 ms, noise is rejected, nothing left after aligning)
 
