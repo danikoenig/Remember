@@ -164,6 +164,17 @@ namespace RememberClip
         c.gridOffset -= (double) pos;
     }
 
+    bool trimLoopStart (Clip& c, float thresholdDb)
+    {
+        const auto r = findNonSilent (c, thresholdDb);
+        if (r.empty() || r.a <= 0) return false;
+        float jump = 0.0f;
+        for (const auto& v : c.ch) jump = std::max (jump, std::fabs (v.back() - v.front()));
+        const int64_t x = jump > 0.002f ? (int64_t) std::llround (c.sampleRate * 0.001) : 0;
+        rotate (c, r.a, x);
+        return true;
+    }
+
     float peakAbs (const Clip& c, Range r)
     {
         r = clampRange (c, r);

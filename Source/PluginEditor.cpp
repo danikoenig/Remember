@@ -43,14 +43,14 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     saveHistBtn.setTooltip ("Write the history selection as WAV into the export folder");
     dragHistBtn.setTooltip ("Drag the history selection as a WAV file into your DAW or the Finder");
     toEditorBtn.setTooltip ("Copy the history selection into the editor below");
-    trimBtn.setTooltip ("Remove silence at the start and the end (below -60 dB)");
     reverseBtn.setTooltip ("Reverse the selection, or the whole clip");
     fadeInBtn.setTooltip ("Fade in over the selection (without a selection: over the fade length at the start). Length and shape: menu top right");
     fadeOutBtn.setTooltip ("Fade out over the selection (without a selection: over the fade length at the end). Length and shape: menu top right");
     menuBtn.setTooltip ("Settings: export folder, fade length and shape, bit depth");
         clearBtn.setTooltip ("Empty the whole editor so you can load something new (Undo brings it back)");
     keyBtn.setTooltip ("Key and scale, written into the file name");
-    nameLoopBtn.setTooltip ("On: the word Loop is written into the file name (+ LOOP)");
+    nameLoopBtn.setTooltip ("On: the word Loop is written into the file name, and TRIM keeps the loop length (see TRIM)");
+    trimBtn.setTooltip ("Cut the silence at the start and end. With + LOOP on: only the start is cut and moved to the end, so the loop keeps its bar length");
     undoBtn.setTooltip ("Undo (Ctrl/Cmd+Z)");
     redoBtn.setTooltip ("Redo (Ctrl/Cmd+Shift+Z)");
     playBtn.setTooltip ("Listen to the editor through the plugin output (Space). Starts at the green marker");
@@ -440,7 +440,21 @@ void RememberEditor::doTrim()
         return;
     }
     S().beginEdit();
-    RememberClip::trimSilence (S().clip, trimThresholdDb());
+    if (nameLoopBtn.getToggleState())
+    {
+        // Loop: nur den Anfang bis zum ersten Schlag abschneiden und hinten wieder anhaengen, die Laenge (Takte) bleibt
+        const double sr = S().clip.sampleRate;
+        const auto first = RememberClip::findNonSilent (S().clip, trimThresholdDb());
+        if (! RememberClip::trimLoopStart (S().clip, trimThresholdDb()))
+        {
+            S().undo();
+            setStatus ("The loop already starts on the first sound, nothing to trim");
+            return;
+        }
+        setStatus ("Loop start trimmed by " + String ((double) first.a * 1000.0 / sr, 1) + " ms and moved to the end, the loop keeps its length");
+    }
+    else
+        RememberClip::trimSilence (S().clip, trimThresholdDb());
     S().clip.gridOffset = 0.0;      // Takt 1 liegt auf dem neuen Anfang, sonst bleibt am Loop-Beginn ein Rest Stille im Raster
     clipView.clearSelection();
     clipView.setMarker (-1);

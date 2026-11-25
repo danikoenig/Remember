@@ -52,6 +52,9 @@ namespace RememberClip
     // Rotate: dreht den Clip kreisfoermig, sodass pos der neue Anfang wird. Laenge bleibt gleich.
     // An der alten Schnittstelle blendet ein kurzer Ueberblend (xfade Samples je Seite, gleiche Leistung) Klicks weg
     void rotate (Clip&, int64_t pos, int64_t xfade);
+    // Loop-Trim: schneidet die Stille am Anfang ab und haengt sie hinten wieder an. Die Laenge (= Takte) bleibt, der Loop beginnt auf dem
+    // ersten Schlag. An der inneren Naht blendet ein kurzer Dip einen Klick weg, wenn dort ein Sprung ist. false: nichts zu tun
+    bool trimLoopStart (Clip&, float thresholdDb);
 
     float peakAbs (const Clip&, Range r);
     // Integrierte Lautheit in LUFS (BS.1770-4, Gating -70 LUFS absolut und -10 LU relativ). -infinity bei Stille

@@ -187,6 +187,30 @@ int main (int argc, char** argv)
         auto r3 = normalizeRms (qr, { 0, qr.length() }, -18.0, -0.1);
         CHECK (r3.ok && near (rmsDb (qr, { 0, qr.length() }), -18.0, 0.02));
 
+        // Loop-Trim: periodischer Loop (125 BPM, 1 Takt), Kick liegt 70 ms nach dem Anfang. Laenge bleibt, Loop startet auf dem Kick
+        {
+            const double sr = 48000.0, beat = 60.0 / 125.0;
+            const int64_t L = (int64_t) std::llround (4.0 * beat * sr), d = (int64_t) std::llround (0.070 * sr);
+            auto sig = [&] (int64_t t)            // periodisch mit der Laenge L, Kick auf jedem Beat, um d verschoben
+            {
+                const int64_t tt = ((t - d) % L + L) % L;
+                const int64_t b = (int64_t) std::llround (beat * sr);
+                const int64_t i = tt % b;
+                return 0.8f * (float) (std::sin (2.0 * 3.14159265358979 * 60.0 * (double) i / sr) * std::exp (-(double) i / (0.05 * sr)));
+            };
+            Clip lp; lp.sampleRate = sr; lp.ch.assign (2, std::vector<float> ((size_t) L));
+            for (int64_t i = 0; i < L; ++i) { lp.ch[0][(size_t) i] = lp.ch[1][(size_t) i] = sig (i); }
+            // vor dem Kick ist es nicht still (Ausklang des letzten Kicks), also fuer den Test hart auf Stille setzen
+            for (int64_t i = 0; i < d; ++i) lp.ch[0][(size_t) i] = lp.ch[1][(size_t) i] = 0.0f;
+            const int64_t before = lp.length();
+            CHECK (trimLoopStart (lp, -60.0f));
+            CHECK (lp.length() == before);                                    // Laenge bleibt
+            CHECK (std::fabs (lp.ch[0][150]) > 0.2f);                          // Kick beginnt am Anfang
+            CHECK (std::fabs (lp.ch[0][(size_t) (before - 1)]) < 0.01f);     // Ende ist die ehemalige Stille
+            Clip already = lp;
+            CHECK (! trimLoopStart (already, -60.0f));                        // zweites Mal: nichts zu tun
+        }
+
         // Raster-Kalibrierung: Kicks (60 Hz) + Hats, Audio 70 ms hinter dem Raster (125 BPM)
         {
             const double sr = 48000.0, beat = 60.0 / 125.0;
