@@ -13,7 +13,8 @@ Remember laeuft auf einer Spur oder einem Bus mit, nimmt alles auf und behaelt d
 - SAVE schreibt die Auswahl als 24-Bit-WAV in den Export-Ordner, DRAG WAV zieht sie in die DAW
 - Dateinamen mit Projekt, Typ, Form, BPM, Key und Take (`MyTune_Synth_Loop_124bpm_Amin_T03.wav`)
 
-Geplant: Editor (Copy / Cut / Paste, Crop, Trim, Reverse, Fades, Normalize), Wrap und Rotate fuer nahtlose Loops, WAV-Import.
+Editor (v0.2): TO EDITOR, Copy / Cut / Paste, Delete, Crop, Trim, Reverse, Fades, Normalize (Peak oder LUFS), Undo / Redo, Vorhoeren mit Loop, Export des bearbeiteten Clips.
+Geplant: Wrap und Rotate fuer nahtlose Loops, WAV-Import.
 
 Installation: siehe INSTALL.txt. Build: GitHub Actions (siehe .github/workflows/build.yml).
 
