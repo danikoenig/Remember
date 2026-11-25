@@ -1,7 +1,7 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
 ### v0.3.0
-- **Wrap:** select the loop in the editor; the reverb tail after it is folded back onto the start (fade length fades out the tail end), material before the loop is dropped
+- **Wrap:** select the tail (the reverb after the loop) in the editor and press WRAP; it is folded back onto the start (fade length fades out the tail end)
 - **Rotate:** click to set the green marker, ROTATE makes it the new start; length stays the same, a short crossfade removes clicks at the old seam
 - **Import:** IMPORT button or drop a WAV / AIFF / FLAC / MP3 onto the plugin; resampled to the host rate, grid from the host tempo if known
 

@@ -40,25 +40,30 @@ static Clip sine (double sec, double freq, double amp, double sr = 48000.0)
 static void testWrapRotate()
 {
     using namespace RememberClip;
-    // Wrap: Loop [100,300), Nachklang 100 Samples mit Wert 1
+    // Wrap: Tail [300,400) mit Wert 1 wird auf den Anfang gemischt
     Clip c; c.sampleRate = 48000; c.ch.assign (2, std::vector<float> (400, 0.0f));
     for (int i = 300; i < 400; ++i) c.ch[0][(size_t) i] = c.ch[1][(size_t) i] = 1.0f;
-    for (int i = 0; i < 100; ++i) c.ch[0][(size_t) i] = 5.0f;     // vor dem Loop: faellt weg
     c.gridOffset = 150.0;
-    wrap (c, { 100, 300 }, 0);
-    CHECK (c.length() == 200);
-    CHECK (c.ch[0][0] == 1.0f && c.ch[0][99] == 1.0f && c.ch[0][100] == 0.0f);
-    CHECK (std::abs (c.gridOffset - 50.0) < 1e-9);
-    // Wrap mit Ausblenden: letztes Sample des Nachklangs ~ 0
+    wrap (c, { 300, 400 }, 0);
+    CHECK (c.length() == 300);
+    CHECK (c.ch[0][0] == 1.0f && c.ch[0][99] == 1.0f && c.ch[0][100] == 0.0f && c.ch[1][50] == 1.0f);
+    CHECK (std::abs (c.gridOffset - 150.0) < 1e-9);
+    // Wrap mit Ausblenden: letztes Sample des Tails ~ 0
     Clip d; d.ch.assign (1, std::vector<float> (400, 0.0f));
     for (int i = 300; i < 400; ++i) d.ch[0][(size_t) i] = 1.0f;
-    wrap (d, { 100, 300 }, 50);
-    CHECK (d.length() == 200 && d.ch[0][99] < 0.01f && d.ch[0][0] == 1.0f && d.ch[0][49] > 0.9f);
-    // Nachklang laenger als der Loop: faltet mehrfach
+    wrap (d, { 300, 400 }, 50);
+    CHECK (d.length() == 300 && d.ch[0][99] < 0.01f && d.ch[0][0] == 1.0f && d.ch[0][49] > 0.9f);
+    // Tail in der Mitte: Material danach rueckt nach
+    Clip m; m.ch.assign (1, std::vector<float> (300, 0.0f));
+    for (int i = 100; i < 150; ++i) m.ch[0][(size_t) i] = 1.0f;
+    for (int i = 150; i < 300; ++i) m.ch[0][(size_t) i] = 2.0f;
+    wrap (m, { 100, 150 }, 0);
+    CHECK (m.length() == 250 && m.ch[0][0] == 1.0f && m.ch[0][49] == 1.0f && m.ch[0][100] == 2.0f);
+    // Tail laenger als der Rest: faltet mehrfach
     Clip e; e.ch.assign (1, std::vector<float> (250, 0.0f));
     for (int i = 100; i < 250; ++i) e.ch[0][(size_t) i] = 1.0f;
-    wrap (e, { 0, 100 }, 0);
-    CHECK (e.ch[0][0] == 2.0f && e.ch[0][60] == 1.0f);
+    wrap (e, { 100, 250 }, 0);
+    CHECK (e.length() == 100 && e.ch[0][0] == 2.0f && e.ch[0][60] == 1.0f);
     // Rotate: Positionswerte, Laenge gleich
     Clip r; r.ch.assign (1, std::vector<float> (1000));
     for (int i = 0; i < 1000; ++i) r.ch[0][(size_t) i] = (float) (i + 1);

@@ -114,23 +114,19 @@ namespace RememberClip
     void wrap (Clip& c, Range r, int64_t xfade)
     {
         r = clampRange (c, r);
-        if (r.empty()) return;
-        const int64_t n = r.length(), total = c.length() - r.a;
-        for (auto& v : c.ch)
-        {
-            std::vector<float> out (v.begin() + r.a, v.begin() + r.b);
-            const int64_t tail = total - n;
-            const int64_t fade = std::min<int64_t> (std::max<int64_t> (xfade, 0), tail);
-            for (int64_t i = 0; i < tail; ++i)
+        if (r.empty() || r.length() >= c.length()) return;
+        const Channels tail = extract (c, r);
+        deleteRange (c, r);
+        const int64_t n = c.length(), t = r.length();
+        const int64_t fade = std::min<int64_t> (std::max<int64_t> (xfade, 0), t);
+        for (size_t k = 0; k < c.ch.size(); ++k)
+            for (int64_t i = 0; i < t; ++i)
             {
-                float x = v[(size_t) (r.b + i)];
-                const int64_t fromEnd = tail - 1 - i;
+                float x = tail[k][(size_t) i];
+                const int64_t fromEnd = t - 1 - i;
                 if (fromEnd < fade) x *= 0.5f * (1.0f + std::cos (3.14159265358979f * (1.0f - (float) fromEnd / (float) fade)));
-                out[(size_t) (i % n)] += x;      // mehrfaches Zurueckfalten, falls der Nachklang laenger als der Loop ist
+                c.ch[k][(size_t) (i % n)] += x;      // mehrfach zurueckfalten, falls der Tail laenger als der Rest ist
             }
-            v = std::move (out);
-        }
-        c.gridOffset -= (double) r.a;
     }
 
     void rotate (Clip& c, int64_t pos, int64_t xfade)
