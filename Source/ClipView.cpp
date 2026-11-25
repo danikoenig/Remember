@@ -254,7 +254,7 @@ void ClipView::paint (Graphics& g)
     {
         g.setColour (T.textDim);
         g.setFont (Font (rememberFont (14.0f)));
-        g.drawText ("Select audio in the history above and press TO EDITOR", full, Justification::centred);
+        g.drawText ("Select audio in the history above and press TO EDITOR, or drop a WAV here", full, Justification::centred);
         return;
     }
     rebuildPeaks();

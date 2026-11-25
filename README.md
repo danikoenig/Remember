@@ -14,7 +14,7 @@ Remember laeuft auf einer Spur oder einem Bus mit, nimmt alles auf und behaelt d
 - Dateinamen mit Projekt, Typ, Form, BPM, Key und Take (`MyTune_Synth_Loop_124bpm_Amin_T03.wav`)
 
 Editor (v0.2): TO EDITOR, Copy / Cut / Paste, Delete, Crop, Trim, Reverse, Fades, Normalize (Peak oder LUFS), Undo / Redo, Vorhoeren mit Loop, Export des bearbeiteten Clips.
-Geplant: Wrap und Rotate fuer nahtlose Loops, WAV-Import.
+Wrap und Rotate fuer nahtlose Loops, WAV-Import per Button oder Drop (v0.3).
 
 Installation: siehe INSTALL.txt. Build: GitHub Actions (siehe .github/workflows/build.yml).
 

@@ -28,7 +28,7 @@ private:
     bool started = false;
 };
 
-class RememberEditor : public juce::AudioProcessorEditor, private juce::Timer
+class RememberEditor : public juce::AudioProcessorEditor, public juce::FileDragAndDropTarget, private juce::Timer
 {
 public:
     explicit RememberEditor (RememberProcessor&);
@@ -37,6 +37,10 @@ public:
     void paint (juce::Graphics&) override;
     void paintOverChildren (juce::Graphics&) override;
     void resized() override;
+    bool isInterestedInFileDrag (const juce::StringArray&) override;
+    void filesDropped (const juce::StringArray&, int, int) override;
+    void fileDragEnter (const juce::StringArray&, int, int) override { dropping = true; repaint(); }
+    void fileDragExit (const juce::StringArray&) override { dropping = false; repaint(); }
 
 private:
     void timerCallback() override;
@@ -77,6 +81,10 @@ private:
     void doNormalize (int mode);
     void doUndo();
     void doRedo();
+    void doWrap();
+    void doRotate();
+    void importFile (const juce::File&);
+    void chooseImport();
     void doPlay();
     bool handleKey (const juce::KeyPress&);
 
@@ -99,7 +107,7 @@ private:
     juce::TextButton copyBtn { "COPY" }, cutBtn { "CUT" }, pasteBtn { "PASTE" }, deleteBtn { "DELETE" }, cropBtn { "CROP" }, trimBtn { "TRIM" },
                      reverseBtn { "REVERSE" }, fadeInBtn { "FADE IN" }, fadeOutBtn { "FADE OUT" }, fadeLenBtn, normBtn { "NORMALIZE" },
                      undoBtn { "UNDO" }, redoBtn { "REDO" };
-    juce::TextButton playBtn { "PLAY" }, loopBtn { "LOOP" };
+    juce::TextButton playBtn { "PLAY" }, loopBtn { "LOOP" }, wrapBtn { "WRAP" }, rotateBtn { "ROTATE" }, importBtn { "IMPORT" };
     juce::TextButton saveClipBtn { "SAVE" };
     DragButton dragClipBtn { "DRAG WAV" };
 
@@ -112,6 +120,7 @@ private:
     juce::String infoText, statusText;
     int statusTicks = 0, infoTick = 0;
     int fadeMs = 25;
+    bool dropping = false;
     float scale = 1.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RememberEditor)

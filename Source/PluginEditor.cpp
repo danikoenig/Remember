@@ -28,7 +28,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     for (Button* b : std::initializer_list<Button*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &fitBtn, &bar1, &bar2, &bar4, &bar8, &bar16,
                                                        &typeBtn, &formBtn, &scaleBtn, &folderBtn, &toEditorBtn, &saveHistBtn, &dragHistBtn,
                                                        &copyBtn, &cutBtn, &pasteBtn, &deleteBtn, &cropBtn, &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn,
-                                                       &fadeLenBtn, &normBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &saveClipBtn, &dragClipBtn })
+                                                       &fadeLenBtn, &normBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &rotateBtn, &importBtn, &saveClipBtn, &dragClipBtn })
         addAndMakeVisible (b);
     loopBtn.setClickingTogglesState (true);
     addAndMakeVisible (projectEd);
@@ -59,6 +59,9 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     redoBtn.setTooltip ("Redo (Ctrl/Cmd+Shift+Z)");
     playBtn.setTooltip ("Listen to the editor through the plugin output (Space). Starts at the green marker");
     loopBtn.setTooltip ("Loop the playback");
+    wrapBtn.setTooltip ("Select the loop. Everything after it (reverb tail) is folded back onto the start, everything before it is dropped. The fade length is used to fade out the tail");
+    rotateBtn.setTooltip ("Set the green marker: the clip is rotated so the marker becomes the start. Length stays the same");
+    importBtn.setTooltip ("Load a WAV, AIFF or FLAC file into the editor. You can also drop a file onto the plugin");
     saveClipBtn.setTooltip ("Write the edited clip as WAV into the export folder");
     dragClipBtn.setTooltip ("Drag the edited clip as a WAV file into your DAW or the Finder");
 
@@ -151,6 +154,9 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     undoBtn.onClick = [this] { doUndo(); };
     redoBtn.onClick = [this] { doRedo(); };
     playBtn.onClick = [this] { doPlay(); };
+    wrapBtn.onClick = [this] { doWrap(); };
+    rotateBtn.onClick = [this] { doRotate(); };
+    importBtn.onClick = [this] { chooseImport(); };
     loopBtn.onClick = [this] { processor.getAudition().setLoop (loopBtn.getToggleState()); };
     processor.getAudition().setLoop (false);
 
@@ -522,6 +528,106 @@ void RememberEditor::doRedo()
     if (S().redo()) { clipView.clearSelection(); afterEdit (true); }
 }
 
+void RememberEditor::doWrap()
+{
+    RememberClip::Range r;
+    if (! needSelection (r)) return;
+    const int64_t tail = S().clip.length() - r.b;
+    S().beginEdit();
+    RememberClip::wrap (S().clip, r, (int64_t) std::llround (S().clip.sampleRate * fadeMs / 1000.0));
+    clipView.clearSelection();
+    clipView.setMarker (-1);
+    afterEdit (true);
+    setStatus (tail > 0 ? "Wrapped: " + String ((double) tail / S().clip.sampleRate, 2) + " s tail folded back onto the start"
+                        : "Cropped to the loop (there was no tail after the selection)");
+}
+
+void RememberEditor::doRotate()
+{
+    if (! needClip()) return;
+    const int64_t m = clipView.getMarker();
+    if (m <= 0 || m >= S().clip.length())
+    {
+        setStatus ("Click in the editor to set the green marker: it becomes the new start");
+        return;
+    }
+    S().beginEdit();
+    RememberClip::rotate (S().clip, m, (int64_t) std::llround (S().clip.sampleRate * jmin (fadeMs, 10) / 1000.0));
+    clipView.clearSelection();
+    clipView.setMarker (-1);
+    afterEdit (true);
+}
+
+bool RememberEditor::isInterestedInFileDrag (const StringArray& files)
+{
+    for (auto& f : files)
+        if (File (f).hasFileExtension ("wav;aif;aiff;flac;mp3;ogg")) return true;
+    return false;
+}
+
+void RememberEditor::filesDropped (const StringArray& files, int, int)
+{
+    dropping = false;
+    repaint();
+    if (files.size() > 0) importFile (File (files[0]));
+}
+
+void RememberEditor::chooseImport()
+{
+    chooser = std::make_unique<FileChooser> ("Import audio", currentFolder().exists() ? currentFolder() : File::getSpecialLocation (File::userMusicDirectory),
+                                             "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
+    chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles,
+                          [safe = SafePointer<RememberEditor> (this)] (const FileChooser& fc)
+                          {
+                              if (safe != nullptr && fc.getResult().existsAsFile()) safe->importFile (fc.getResult());
+                          });
+}
+
+void RememberEditor::importFile (const File& f)
+{
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> reader (fm.createReaderFor (f));
+    if (reader == nullptr || reader->lengthInSamples <= 0) { setStatus ("Cannot read " + f.getFileName()); return; }
+    const double maxSeconds = 20.0 * 60.0;
+    if ((double) reader->lengthInSamples / reader->sampleRate > maxSeconds) { setStatus ("File is longer than 20 minutes"); return; }
+
+    const int n = (int) reader->lengthInSamples;
+    AudioBuffer<float> src (2, n);
+    reader->read (&src, 0, n, 0, true, true);
+    if (reader->numChannels == 1) src.copyFrom (1, 0, src, 0, 0, n);
+
+    const double hostRate = processor.getEngine().getSampleRate() > 0.0 ? processor.getEngine().getSampleRate() : reader->sampleRate;
+    RememberClip::Clip c;
+    c.sampleRate = hostRate;
+    if (std::abs (hostRate - reader->sampleRate) < 0.5)
+    {
+        c.ch.resize (2);
+        for (int ch = 0; ch < 2; ++ch) c.ch[(size_t) ch].assign (src.getReadPointer (ch), src.getReadPointer (ch) + n);
+    }
+    else
+    {
+        const double ratio = reader->sampleRate / hostRate;
+        const int outN = (int) std::floor ((double) n / ratio);
+        c.ch.assign (2, std::vector<float> ((size_t) outN));
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            LagrangeInterpolator li;
+            li.process (ratio, src.getReadPointer (ch), c.ch[(size_t) ch].data(), outN);
+        }
+    }
+    // Tempo vom Host (falls bekannt): Raster mit Taktanfang am Dateianfang
+    const double bpm = historyBpm();
+    if (bpm > 1.0) { c.bpm = bpm; c.gridOffset = 0.0; }
+
+    processor.getAudition().stop();
+    S().load (std::move (c));
+    clipView.clearSelection();
+    clipView.setMarker (-1);
+    afterEdit (true);
+    setStatus ("Imported  " + f.getFileName() + (bpm > 1.0 ? "  (grid from the host tempo, bar 1 = file start)" : ""));
+}
+
 void RememberEditor::doPlay()
 {
     auto& a = processor.getAudition();
@@ -580,7 +686,8 @@ void RememberEditor::timerCallback()
     toEditorBtn.getProperties().set ("active", sel);
     for (auto* b : { &copyBtn, &cutBtn, &deleteBtn, &cropBtn }) b->setEnabled (csel);
     for (auto* b : { &pasteBtn }) b->setEnabled (clip && ! S().clipboard.empty());
-    for (auto* b : { &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &playBtn, &loopBtn }) b->setEnabled (clip);
+    for (auto* b : { &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &playBtn, &loopBtn, &rotateBtn }) b->setEnabled (clip);
+    wrapBtn.setEnabled (csel);
     undoBtn.setEnabled (S().canUndo());
     redoBtn.setEnabled (S().canRedo());
     saveClipBtn.setEnabled (clip);
@@ -592,7 +699,7 @@ void RememberEditor::timerCallback()
     fadeLenBtn.setButtonText ("FADE  " + String (fadeMs) + " ms");
     for (Component* b : std::initializer_list<Component*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &saveHistBtn, &dragHistBtn, &toEditorBtn,
                                                             &copyBtn, &cutBtn, &pasteBtn, &deleteBtn, &cropBtn, &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn,
-                                                            &fadeLenBtn, &normBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &saveClipBtn, &dragClipBtn }) b->repaint();
+                                                            &fadeLenBtn, &normBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &rotateBtn, &importBtn, &saveClipBtn, &dragClipBtn }) b->repaint();
 
     if (++infoTick % 8 == 0) refreshInfo();
     if (statusTicks > 0 && --statusTicks == 0) repaint (R (0, 780, designW, 30));
@@ -633,6 +740,9 @@ void RememberEditor::resized()
     clipView.setBounds (R (16, 446, 948, 190));
     playBtn.setBounds (R (16, 644, 100, 36));
     loopBtn.setBounds (R (124, 644, 80, 36));
+    wrapBtn.setBounds (R (228, 644, 90, 36));
+    rotateBtn.setBounds (R (326, 644, 100, 36));
+    importBtn.setBounds (R (434, 644, 100, 36));
     saveClipBtn.setBounds (R (700, 644, 120, 36));
     dragClipBtn.setBounds (R (828, 644, 136, 36));
 
@@ -689,6 +799,15 @@ void RememberEditor::paint (Graphics& g)
     g.setFont (Font (rememberFont (12.0f * scale, true)));
     g.drawText ("SELECT BARS", R (506, 80, 80, 40), Justification::centredRight);
 
+
+    if (dropping)
+    {
+        g.setColour (T.accent.withAlpha (0.12f));
+        g.fillRoundedRectangle (R (16, 446, 948, 190).toFloat(), T.radius);
+        g.setColour (T.accent);
+        g.setFont (Font (rememberFont (16.0f * scale, true)));
+        g.drawText ("Drop to load into the editor", R (16, 446, 948, 190), Justification::centred);
+    }
 
     // Info rechts neben dem Ordner
     g.setColour (T.text);

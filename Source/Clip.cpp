@@ -111,6 +111,53 @@ namespace RememberClip
         if (! r.empty()) crop (c, r);
     }
 
+    void wrap (Clip& c, Range r, int64_t xfade)
+    {
+        r = clampRange (c, r);
+        if (r.empty()) return;
+        const int64_t n = r.length(), total = c.length() - r.a;
+        for (auto& v : c.ch)
+        {
+            std::vector<float> out (v.begin() + r.a, v.begin() + r.b);
+            const int64_t tail = total - n;
+            const int64_t fade = std::min<int64_t> (std::max<int64_t> (xfade, 0), tail);
+            for (int64_t i = 0; i < tail; ++i)
+            {
+                float x = v[(size_t) (r.b + i)];
+                const int64_t fromEnd = tail - 1 - i;
+                if (fromEnd < fade) x *= 0.5f * (1.0f + std::cos (3.14159265358979f * (1.0f - (float) fromEnd / (float) fade)));
+                out[(size_t) (i % n)] += x;      // mehrfaches Zurueckfalten, falls der Nachklang laenger als der Loop ist
+            }
+            v = std::move (out);
+        }
+        c.gridOffset -= (double) r.a;
+    }
+
+    void rotate (Clip& c, int64_t pos, int64_t xfade)
+    {
+        const int64_t n = c.length();
+        if (n < 2) return;
+        pos = std::min<int64_t> (std::max<int64_t> (pos, 0), n - 1);
+        if (pos == 0) return;
+        const int64_t s = n - pos;                       // neue Position der alten Schnittstelle
+        const int64_t x = std::min<int64_t> (std::max<int64_t> (xfade, 0), std::min (pos, s) );
+        for (auto& v : c.ch)
+        {
+            std::vector<float> out ((size_t) n);
+            std::copy (v.begin() + pos, v.end(), out.begin());
+            std::copy (v.begin(), v.begin() + pos, out.begin() + s);
+            // Schnittstelle bei s: kurzes Ueberblenden durch Absenken (gleiche Leistung) auf beiden Seiten
+            for (int64_t i = 0; i < x; ++i)
+            {
+                const float w = std::sin (1.57079632679f * (float) (i + 1) / (float) (x + 1));   // 0 an der Naht -> 1
+                out[(size_t) (s - 1 - i)] *= w;
+                out[(size_t) (s + i)] *= w;
+            }
+            v = std::move (out);
+        }
+        c.gridOffset -= (double) pos;
+    }
+
     float peakAbs (const Clip& c, Range r)
     {
         r = clampRange (c, r);

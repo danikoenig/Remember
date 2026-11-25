@@ -115,6 +115,15 @@ int main (int argc, char** argv)
     save (*ed);   // zwei SAVE-Knoepfe: History und Editor
     MessageManager::getInstance()->runDispatchLoopUntil (200);
 
+    // WAV-Import pruefen: die eben gespeicherte Datei per Drop laden
+    if (bars > 0)
+    {
+        auto* re = dynamic_cast<RememberEditor*> (ed.get());
+        re->filesDropped ({ "/tmp/remember_out/Test_Synth_Loop_124bpm_Amin_T01.wav" }, 0, 0);
+        MessageManager::getInstance()->runDispatchLoopUntil (200);
+        std::printf ("clip length after import: %lld\n", (long long) proc.getSession().clip.length());
+    }
+
     const auto img = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.0f);
     out.deleteFile();
     FileOutputStream os (out);
