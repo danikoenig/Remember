@@ -60,7 +60,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     playBtn.setTooltip ("Listen to the editor through the plugin output (Space). Starts at the green marker");
     loopBtn.setTooltip ("Loop the playback");
     wrapBtn.setTooltip ("Select the tail (the reverb after the loop) and press WRAP: it is folded back onto the start of the clip. The fade length fades out the tail end");
-    rotateBtn.setTooltip ("Set the green marker: the clip is rotated so the marker becomes the start. Length stays the same");
+    rotateBtn.setTooltip ("Select the tail (or set the green marker) and press ROTATE: it moves to the front, the length stays the same");
     importBtn.setTooltip ("Load a WAV, AIFF or FLAC file into the editor. You can also drop a file onto the plugin");
     saveClipBtn.setTooltip ("Write the edited clip as WAV into the export folder");
     dragClipBtn.setTooltip ("Drag the edited clip as a WAV file into your DAW or the Finder");
@@ -548,17 +548,22 @@ void RememberEditor::doWrap()
 void RememberEditor::doRotate()
 {
     if (! needClip()) return;
-    const int64_t m = clipView.getMarker();
-    if (m <= 0 || m >= S().clip.length())
+    // Mit Auswahl (z. B. dem Tail): der Anfang der Auswahl wird zum neuen Anfang, der Tail rueckt nach vorne.
+    // Sonst der gruene Marker
+    RememberClip::Range r;
+    int64_t pos = clipView.getMarker();
+    if (clipView.getSelection (r)) pos = r.a;
+    if (pos <= 0 || pos >= S().clip.length())
     {
-        setStatus ("Click in the editor to set the green marker: it becomes the new start");
+        setStatus ("ROTATE: select the tail (or set the green marker). Its start becomes the new start of the clip");
         return;
     }
     S().beginEdit();
-    RememberClip::rotate (S().clip, m, (int64_t) std::llround (S().clip.sampleRate * jmin (fadeMs, 10) / 1000.0));
+    RememberClip::rotate (S().clip, pos, (int64_t) std::llround (S().clip.sampleRate * jmin (fadeMs, 10) / 1000.0));
     clipView.clearSelection();
     clipView.setMarker (-1);
     afterEdit (true);
+    setStatus ("Rotated: " + String ((double) (S().clip.length() - pos) / S().clip.sampleRate, 2) + " s moved to the front");
 }
 
 bool RememberEditor::isInterestedInFileDrag (const StringArray& files)
@@ -689,7 +694,8 @@ void RememberEditor::timerCallback()
     toEditorBtn.getProperties().set ("active", sel);
     for (auto* b : { &copyBtn, &cutBtn, &deleteBtn, &cropBtn }) b->setEnabled (csel);
     for (auto* b : { &pasteBtn }) b->setEnabled (clip && ! S().clipboard.empty());
-    for (auto* b : { &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &playBtn, &loopBtn, &rotateBtn }) b->setEnabled (clip);
+    for (auto* b : { &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &playBtn, &loopBtn }) b->setEnabled (clip);
+    rotateBtn.setEnabled (clip);
     wrapBtn.setEnabled (csel);
     undoBtn.setEnabled (S().canUndo());
     redoBtn.setEnabled (S().canRedo());
@@ -820,7 +826,7 @@ void RememberEditor::paint (Graphics& g)
     // Statuszeile
     if (statusTicks > 0)
     {
-        g.setColour (T.textDim);
+        g.setColour (T.accent);
         g.setFont (Font (rememberFont (12.5f * scale)));
         g.drawText (statusText, R (16, 786, 948, 22), Justification::centredLeft, true);
     }

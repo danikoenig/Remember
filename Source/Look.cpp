@@ -32,7 +32,11 @@ void RememberLookAndFeel::drawButtonBackground (Graphics& g, Button& b, const Co
     g.fillRoundedRectangle (r, T.radius);
     if (! active)
     {
-        g.setColour (T.cardBorder);
+        // Duenner blauer Rahmen mit leichtem Schein
+        const float a = b.isEnabled() ? (over || down ? 1.0f : 0.8f) : 0.3f;
+        g.setColour (T.glow.withAlpha (0.16f * a));
+        g.drawRoundedRectangle (r.reduced (1.5f), T.radius - 1.0f, 2.0f);
+        g.setColour (T.glow.withAlpha (0.65f * a));
         g.drawRoundedRectangle (r, T.radius, 1.0f);
     }
 }

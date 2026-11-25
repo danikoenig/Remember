@@ -1,5 +1,10 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v0.3.1
+- **Design:** dark grey look, buttons with a thin blue outline, orange frame kept
+- **Rotate:** with a selection (e.g. the tail) its start becomes the new start, the tail moves to the front. Without a selection the green marker is used
+- **Wrap:** selected tail is folded onto the start (see v0.3.0)
+
 ### v0.3.0
 - **Wrap:** select the tail (the reverb after the loop) in the editor and press WRAP; it is folded back onto the start (fade length fades out the tail end)
 - **Rotate:** click to set the green marker, ROTATE makes it the new start; length stays the same, a short crossfade removes clicks at the old seam
