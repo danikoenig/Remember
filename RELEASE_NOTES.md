@@ -1,5 +1,8 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.0.5
+- **Design:** base colours now match The One and the other plugins (near-black blue-grey, orange frame)
+
 ### v1.0.4
 - **TO FRONT removed:** one button less, FOLD TAIL stays
 

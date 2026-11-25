@@ -21,19 +21,20 @@ namespace RememberColours
         {
             Theme a;
             auto C = [] (juce::uint32 v) { return juce::Colour (v); };
-            a.bgTop = C (0xff3d3e42);       a.bgBottom = C (0xff303134);
-            a.card = C (0xff2b2c2f);        a.cardBorder = C (0xff55575c);
-            a.inset = C (0xff232427);       a.text = C (0xffe8e8ea);
-            a.textDim = C (0xff9a9da3);
-            a.wave = C (0xffcfd2d8);        a.waveDim = C (0xff666970);
-            a.accent = C (0xffff7a2f);      a.start = C (0xff3ccf8a);
-            a.playStart = C (0xff5aa0f5);
-            a.grid = C (0x22ffffff);        a.bar = C (0x55ffffff);
+            // Grundfarben wie bei The One und den anderen Plugins
+            a.bgTop = C (0xff17181c);       a.bgBottom = C (0xff0d0e11);
+            a.card = C (0xff1d1f24);        a.cardBorder = C (0xff2b2e35);
+            a.inset = C (0xff121317);       a.text = C (0xffeceef2);
+            a.textDim = C (0xff7d828c);
+            a.wave = C (0xffcfd2d8);        a.waveDim = C (0xff565a63);
+            a.accent = C (0xffff7a2f);      a.start = C (0xff3ddc84);
+            a.playStart = C (0xff4d8dff);
+            a.grid = C (0x1fffffff);        a.bar = C (0x4dffffff);
             a.selection = C (0xffff7a2f);
             a.frame = C (0xffff7a2f);       // oranger Rahmen wie bei den anderen Plugins
-            a.btn = C (0xff4b4d52);         a.btnHover = C (0xff595b61);
-            a.btnText = C (0xffeceef0);     a.btnTextDim = C (0xff777a80);
-            a.glow = C (0xff4f9dff);
+            a.btn = C (0xff26282e);         a.btnHover = C (0xff2c2f36);
+            a.btnText = C (0xffeceef2);     a.btnTextDim = C (0xff5f636c);
+            a.glow = C (0xff4d8dff);
             return a;
         }();
         return t;
