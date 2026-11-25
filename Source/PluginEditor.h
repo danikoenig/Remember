@@ -103,6 +103,7 @@ private:
     void showClipMenu();
     void showSettingsMenu();
     void calibrateGrid();
+    juce::String shiftNote (int64_t samples) const;
     void syncGridShift();
     int fadeLengthMs() const;
     int normMode() const;

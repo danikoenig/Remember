@@ -1,4 +1,5 @@
 #include "HistoryView.h"
+#include "Align.h"
 #include "Look.h"
 #include <cstdlib>
 
@@ -108,6 +109,39 @@ bool HistoryView::getSelectionTempo (double& bpm, float& bpb) const
     return tempoAt (m, s, bpm, bpb);
 }
 
+int64_t HistoryView::exportShift (int64_t s, int64_t e) const
+{
+    lastShift = 0;
+    if (! autoAlignOn) return 0;
+    auto st = engine.storage();
+    if (st == nullptr) return 0;
+    const double sr = engine.getSampleRate();
+    std::vector<Meta> m;
+    st->readMeta (s, e, m);
+    double bpm = 0.0;
+    float bpb = 4.0f;
+    if (! tempoAt (m, s, bpm, bpb) || bpm < 20.0) return 0;
+    std::vector<GridPoint> g;
+    gridFromMeta (m, st->writtenNow(), sr, s, e, 1.0, g);
+    const double beatSec = 60.0 / bpm;
+    const int64_t pad = (int64_t) (0.35 * beatSec * sr);
+    const int64_t a = std::max (s - pad, st->oldestValid()), z = std::min (e + pad, st->writtenNow());
+    if (g.size() < 2 || z - a < (int64_t) (0.5 * sr)) return 0;
+    std::vector<float> l ((size_t) (z - a)), r ((size_t) (z - a));
+    float* dst[2] { l.data(), r.data() };
+    if (! st->copyRange (a, z - a, dst, 2)) return 0;
+    for (size_t i = 0; i < l.size(); ++i) l[i] = 0.5f * (l[i] + r[i]);
+    std::vector<int64_t> beats;
+    for (const auto& p : g) beats.push_back (p.sample - a);
+    const auto res = RememberAlign::estimateGridOffset (l, sr, beats, beatSec);
+    if (! res.ok) return 0;
+    const int64_t d = res.offsetSamples;
+    if (std::llabs (d) > (int64_t) (0.3 * beatSec * sr)) return 0;
+    if (s + d < st->oldestValid() || e + d > st->writtenNow()) return 0;       // nicht genug Aufnahme dahinter
+    lastShift = d;
+    return d;
+}
+
 bool HistoryView::grabClip (RememberClip::Clip& out) const
 {
     int64_t s, e;
@@ -120,7 +154,8 @@ bool HistoryView::grabClip (RememberClip::Clip& out) const
     c.ch.assign ((size_t) st->numCh, std::vector<float> ((size_t) (e - s)));
     std::vector<float*> ptr;
     for (auto& v : c.ch) ptr.push_back (v.data());
-    if (! st->copyRange (s, e - s, ptr.data(), st->numCh)) return false;
+    const int64_t sh = exportShift (s, e);      // Fenster beginnt auf dem ersten Schlag, Laenge bleibt
+    if (! st->copyRange (s + sh, e - s, ptr.data(), st->numCh)) return false;
 
     // Tempo und Raster: ein Taktanfang als Position im Clip
     std::vector<Meta> m;

@@ -29,6 +29,11 @@ public:
     bool getSelectionTempo (double& bpm, float& beatsPerBar) const;
     // Kopiert die Auswahl samt Tempo und Raster in einen Clip (fuer den Editor)
     bool grabClip (RememberClip::Clip& out) const;
+    // Auto-Ausrichtung beim Export: misst, wie weit die Schlaege hinter den Beat-Linien liegen, und gibt den Versatz in Samples zurueck
+    // (0 = aus, nicht verlaesslich oder ausserhalb der Aufnahme). Das Fenster [s + v, e + v) beginnt dann auf dem ersten Schlag
+    int64_t exportShift (int64_t s, int64_t e) const;
+    void setAutoAlign (bool on) { autoAlignOn = on; }
+    int64_t lastExportShift() const { return lastShift; }
     // Laenge der Auswahl in Takten (false = unbekannt)
     bool getSelectionBars (double& bars) const;
 
@@ -46,6 +51,8 @@ public:
     bool keyPressed (const juce::KeyPress&) override;
 
 private:
+    bool autoAlignOn = true;
+    mutable int64_t lastShift = 0;
     void timerCallback() override;
     bool frozen() const { return hold || hovering || dragging != None || startMarker >= 0 || hasSelection(); }
     void updateView (const RememberDSP::Storage&);

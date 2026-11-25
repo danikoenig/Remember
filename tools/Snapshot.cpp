@@ -1,5 +1,6 @@
 // Entwickler-Werkzeug: fuettert das Plugin mit Testaudio (124 bpm) und simuliertem Host-Transport
 // und speichert ein Bild der Oberflaeche.   RememberSnapshot out.png [bars]
+#include <cstdlib>
 #include "../Source/PluginProcessor.h"
 #include "../Source/PluginEditor.h"
 
@@ -39,6 +40,7 @@ int main (int argc, char** argv)
     MidiBuffer midi;
     Random rnd (7);
     const double spb = sr * 60.0 / host.bpm;
+    const int64_t lagSamples = getenv ("LAG_MS") ? (int64_t) (atof (getenv ("LAG_MS")) * sr / 1000.0) : 0;   // Audio hinter dem Host-Raster (Latenz vor dem Plugin)
     int64_t t = 0;
     double bassPhase = 0.0;
     while (t < (int64_t) (70.0 * sr))
@@ -47,7 +49,7 @@ int main (int argc, char** argv)
         if (host.playing) host.ppq = (double) (t - (int64_t) (6.0 * sr)) / spb;
         for (int i = 0; i < 512; ++i)
         {
-            const double pos = host.playing ? (double) (t + i - (int64_t) (6.0 * sr)) / spb : 0.0;
+            const double pos = host.playing ? (double) (t + i - (int64_t) (6.0 * sr) - lagSamples) / spb : 0.0;
             const double inBeat = pos - std::floor (pos);
             const double inEighth = pos * 2.0 - std::floor (pos * 2.0);
             float v = 0.0f;
@@ -66,6 +68,7 @@ int main (int argc, char** argv)
         t += 512;
     }
 
+    if (getenv ("AUTOALIGN")) proc.setProp (PropID::autoAlign, getenv ("AUTOALIGN"));
     std::unique_ptr<AudioProcessorEditor> ed (proc.createEditor());
     ed->setSize (980, 730);
     MessageManager::getInstance()->runDispatchLoopUntil (300);

@@ -22,6 +22,7 @@ namespace PropID
     inline constexpr const char* fadeMs  = "fadeMs";
     inline constexpr const char* fadeShape = "fadeShape";   // 0 Smooth, 1 Linear, 2 Equal power, 3 Exponential
     inline constexpr const char* bits    = "bits";
+    inline constexpr const char* autoAlign = "autoAlign";  // "0" = aus (Standard: an)
     inline constexpr const char* gridMs  = "gridMs";      // Raster-Versatz in ms (Latenz vor dem Plugin), > 0 = Audio kommt spaeter
     inline constexpr const char* normMode = "normMode";  // Index in der Normalize-Liste
     inline constexpr const char* trimDb  = "trimDb";

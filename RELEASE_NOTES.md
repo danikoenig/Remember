@@ -1,5 +1,11 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.6.0
+- **Auto-align on export (default on):** TO EDITOR, SAVE and DRAG WAV from the history now measure how far the kicks lie behind the beat lines of the host and start the file on the first kick. The length stays exactly the selected bars. No manual step needed. Plugins with latency in front of Remember no longer shift the loop
+- The status line shows the shift ("aligned to the first kick, 70.3 ms"). Menu: "Auto-align exports to the first kick" switches it off
+- Material without a steady kick on the beats (pads, atmospheres) is left unchanged
+- Test: recording with 70 ms latency, exported file has the kick 71 ms late without, 1 ms (measurement resolution) with auto-align
+
 ### v1.5.0
 - **TRIM for loops:** with + LOOP on, TRIM cuts only the silence at the start (up to the first sound) and moves it to the end. The clip keeps its exact length (bars), the loop starts on the first hit, and no gap is left at the end. With + LOOP off, TRIM works as before (start and end)
 - If the seam inside the clip has a jump, a 1 ms dip removes the click

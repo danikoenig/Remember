@@ -264,6 +264,12 @@ void RememberEditor::refreshInfo()
     repaint (R (16, 352, 520, 40));
 }
 
+String RememberEditor::shiftNote (int64_t samples) const
+{
+    if (samples == 0) return {};
+    return "  (aligned to the first kick, " + String ((double) samples * 1000.0 / processor.getEngine().getSampleRate(), 1) + " ms)";
+}
+
 void RememberEditor::saveHistory()
 {
     int64_t s, e;
@@ -276,8 +282,9 @@ void RememberEditor::saveHistory()
     const auto stem = RememberExport::buildStem (currentMeta (historyBpm()));
     const auto folder = currentFolder();
     const auto file = folder.getChildFile (RememberExport::fileName (stem, RememberExport::nextTake (folder, stem)));
-    const auto err = RememberExport::writeWav (*st, s, e - s, processor.getEngine().getSampleRate(), file);
-    setStatus (err.isEmpty() ? "Saved  " + file.getFileName() : err);
+    const auto sh = view.exportShift (s, e);
+    const auto err = RememberExport::writeWav (*st, s + sh, e - s, processor.getEngine().getSampleRate(), file);
+    setStatus (err.isEmpty() ? "Saved  " + file.getFileName() + shiftNote (sh) : err);
     refreshInfo();
 }
 
@@ -293,8 +300,10 @@ File RememberEditor::prepareHistoryDrag()
     const auto stem = RememberExport::buildStem (currentMeta (historyBpm()));
     const auto tmp = File::getSpecialLocation (File::tempDirectory).getChildFile ("Remember");
     const auto file = tmp.getChildFile (RememberExport::fileName (stem, RememberExport::nextTake (currentFolder(), stem)));
-    const auto err = RememberExport::writeWav (*st, s, e - s, processor.getEngine().getSampleRate(), file);
+    const auto sh = view.exportShift (s, e);
+    const auto err = RememberExport::writeWav (*st, s + sh, e - s, processor.getEngine().getSampleRate(), file);
     if (err.isNotEmpty()) { setStatus (err); return {}; }
+    if (sh != 0) setStatus ("Dragging" + shiftNote (sh));
     return file;
 }
 
@@ -366,7 +375,7 @@ void RememberEditor::toEditor()
     clipView.clearSelection();
     clipView.setMarker (-1);
     afterEdit (true);
-    setStatus (String ((double) S().clip.length() / S().clip.sampleRate, 2) + " s copied into the editor");
+    setStatus (String ((double) S().clip.length() / S().clip.sampleRate, 2) + " s copied into the editor" + shiftNote (view.lastExportShift()));
 }
 
 void RememberEditor::doCopy()
@@ -630,6 +639,7 @@ void RememberEditor::syncGridShift()
     auto& eng = processor.getEngine();
     const int64_t want = (int64_t) std::llround (processor.getProp (PropID::gridMs, "0").getDoubleValue() * eng.getSampleRate() / 1000.0);
     if (want != eng.getGridShift()) eng.setGridShift (want);
+    view.setAutoAlign (processor.getProp (PropID::autoAlign, "1") != "0");
 }
 
 void RememberEditor::calibrateGrid()
@@ -710,6 +720,7 @@ void RememberEditor::showSettingsMenu()
     m.addSeparator();
     m.addSectionHeader ("Timing  (grid offset " + String (processor.getProp (PropID::gridMs, "0").getDoubleValue(), 1) + " ms)");
     m.addItem (8, "Align grid to selection (steady kick, 2+ bars)", view.hasSelection());
+    m.addItem (10, "Auto-align exports to the first kick", true, processor.getProp (PropID::autoAlign, "1") != "0");
     m.addItem (9, "Reset grid offset", processor.getProp (PropID::gridMs, "0").getDoubleValue() != 0.0);
     m.addSeparator();
     m.addSectionHeader ("Editing");
@@ -730,6 +741,7 @@ void RememberEditor::showSettingsMenu()
                          else if (r >= 100 && r < 107) { p.setProp (PropID::fadeMs, String (lengths[r - 100])); safe->setStatus ("Fade length " + String (lengths[r - 100]) + " ms"); }
                          else if (r >= 200 && r < 204) { p.setProp (PropID::fadeShape, String (r - 200)); safe->setStatus (String ("Fade shape: ") + shapes[r - 200]); }
                          else if (r == 8) safe->calibrateGrid();
+                         else if (r == 10) { p.setProp (PropID::autoAlign, p.getProp (PropID::autoAlign, "1") == "0" ? "1" : "0"); safe->syncGridShift(); safe->setStatus (p.getProp (PropID::autoAlign, "1") == "0" ? "Auto-align off" : "Auto-align on"); }
                          else if (r == 9) { p.setProp (PropID::gridMs, "0"); safe->syncGridShift(); safe->view.clearSelection(); safe->view.repaint(); safe->setStatus ("Grid offset reset to 0 ms"); }
                          else if (r == 7) { p.setProp (PropID::tooltips, p.getProp (PropID::tooltips, "1") == "0" ? "1" : "0"); safe->applyTooltipSetting(); }
                          else if (r >= 400 && r < 408) { p.setProp (PropID::normMode, String (r - 400)); safe->refreshInfo(); safe->setStatus (String ("Normalize target: ") + normNames[r - 400]); }
