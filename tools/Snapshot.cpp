@@ -121,7 +121,7 @@ int main (int argc, char** argv)
     if (bars > 0)
     {
         auto* re = dynamic_cast<RememberEditor*> (ed.get());
-        re->filesDropped ({ "/tmp/remember_out/Test_Synth_Loop_124bpm_Amin_T01.wav" }, 0, 0);
+        re->filesDropped ({ "/tmp/remember_out/Test_Loop_124bpm_Amin_T01.wav" }, 0, 0);
         MessageManager::getInstance()->runDispatchLoopUntil (200);
         std::printf ("clip length after import: %lld\n", (long long) proc.getSession().clip.length());
     }

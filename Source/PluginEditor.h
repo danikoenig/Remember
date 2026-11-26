@@ -44,6 +44,31 @@ public:
     }
 };
 
+// Kleiner runder Schalter mit Beschriftung (Punkt blau = an, unauffaellig)
+class DotToggle : public juce::ToggleButton
+{
+public:
+    void paintButton (juce::Graphics& g, bool over, bool) override
+    {
+        const auto& T = RememberColours::theme();
+        const auto b = getLocalBounds().toFloat();
+        const float d = juce::jmin (14.0f, b.getHeight() * 0.42f);
+        const auto dot = juce::Rectangle<float> (b.getX() + 3.0f, b.getCentreY() - d * 0.5f, d, d);
+        const bool on = getToggleState();
+        if (on)
+        {
+            g.setColour (T.glow.withAlpha (0.22f));
+            g.fillEllipse (dot.expanded (2.5f));
+        }
+        g.setColour (on ? T.glow : T.btnTextDim.withAlpha (over ? 1.0f : 0.75f));
+        g.drawEllipse (dot, 1.4f);
+        if (on) g.fillEllipse (dot.reduced (3.4f));
+        g.setColour (on ? T.text.withAlpha (0.9f) : T.textDim);
+        g.setFont (juce::Font (rememberFont (juce::jlimit (10.0f, 14.0f, b.getHeight() * 0.3f), true)));
+        g.drawText (getButtonText(), b.withTrimmedLeft (d + 11.0f), juce::Justification::centredLeft);
+    }
+};
+
 class RememberEditor : public juce::AudioProcessorEditor, public juce::FileDragAndDropTarget, private juce::Timer
 {
 public:
@@ -140,7 +165,8 @@ private:
 
     // Metadaten und Ordner
     juce::TextEditor projectEd;
-    juce::TextButton keyBtn, nameLoopBtn { "+ LOOP" };
+    juce::TextButton keyBtn;
+    DotToggle nameLoopBtn, alignDot;
     bool hintEditor = false;
 
     juce::TooltipWindow tooltip { this, 700 };

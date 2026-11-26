@@ -27,7 +27,7 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     view.setHold (processor.apvts.getRawParameterValue (ParamID::hold)->load() > 0.5f);
 
     for (Button* b : std::initializer_list<Button*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &fitBtn, &bar1, &bar2, &bar4, &bar8, &bar16,
-                                                       &keyBtn, &nameLoopBtn, &menuBtn, &toEditorBtn, &saveHistBtn, &dragHistBtn,
+                                                       &keyBtn, &nameLoopBtn, &alignDot, &menuBtn, &toEditorBtn, &saveHistBtn, &dragHistBtn,
                                                        &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &clearBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &importBtn, &saveClipBtn, &dragClipBtn })
         addAndMakeVisible (b);
     loopBtn.setClickingTogglesState (true);
@@ -49,7 +49,11 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     menuBtn.setTooltip ("Settings: export folder, fade length and shape, bit depth");
         clearBtn.setTooltip ("Empty the whole editor so you can load something new (Undo brings it back)");
     keyBtn.setTooltip ("Key and scale, written into the file name");
+    nameLoopBtn.setButtonText ("LOOP");
+    nameLoopBtn.toFront (false);
     nameLoopBtn.setTooltip ("On: the word Loop is written into the file name, and TRIM keeps the loop length (see TRIM)");
+    alignDot.setButtonText ("ALIGN TO KICK");
+    alignDot.setTooltip ("On: TO EDITOR, SAVE and DRAG WAV from the history start on the first kick (corrects plugin latency). Off for pads and sounds without a kick on the beats");
     trimBtn.setTooltip ("Cut the silence at the start and end. With + LOOP on: only the start is cut and moved to the end, so the loop keeps its bar length");
     undoBtn.setTooltip ("Undo (Ctrl/Cmd+Z)");
     redoBtn.setTooltip ("Redo (Ctrl/Cmd+Shift+Z)");
@@ -104,6 +108,14 @@ RememberEditor::RememberEditor (RememberProcessor& p)
     {
         processor.setProp (PropID::form, nameLoopBtn.getToggleState() ? String ("Loop") : String ("-"));
         refreshInfo();
+    };
+    alignDot.setClickingTogglesState (true);
+    alignDot.setToggleState (processor.getProp (PropID::autoAlign, "1") != "0", dontSendNotification);
+    alignDot.onClick = [this]
+    {
+        processor.setProp (PropID::autoAlign, alignDot.getToggleState() ? "1" : "0");
+        syncGridShift();
+        setStatus (alignDot.getToggleState() ? "Align to kick on" : "Align to kick off: exports start exactly on the host grid");
     };
     menuBtn.onClick = [this] { showSettingsMenu(); };
     RememberExport::bitDepth() = processor.getProp (PropID::bits, "24").getIntValue();
@@ -257,8 +269,7 @@ void RememberEditor::refreshInfo()
     infoText = s;
 
     const auto key = processor.getProp (PropID::key), scale = processor.getProp (PropID::scale);
-    keyBtn.setButtonText (key.isEmpty() ? String ("KEY  -") : "KEY  " + key.toUpperCase() + (scale == "Minor" ? " MINOR" : scale == "Major" ? " MAJOR" : ""));
-    nameLoopBtn.getProperties().set ("active", nameLoopBtn.getToggleState());
+    keyBtn.setButtonText (key.isEmpty() ? String ("KEY") : key.toUpperCase() + (scale == "Minor" ? " MIN" : scale == "Major" ? " MAJ" : ""));
     normBtn.setTooltip (String ("Normalize the whole clip to ") + normNames[normMode()] + ". Change the target: menu top right");
     menuBtn.setTooltip ("Settings. Export folder: " + currentFolder().getFullPathName());
     repaint (R (16, 352, 520, 40));
@@ -639,7 +650,9 @@ void RememberEditor::syncGridShift()
     auto& eng = processor.getEngine();
     const int64_t want = (int64_t) std::llround (processor.getProp (PropID::gridMs, "0").getDoubleValue() * eng.getSampleRate() / 1000.0);
     if (want != eng.getGridShift()) eng.setGridShift (want);
-    view.setAutoAlign (processor.getProp (PropID::autoAlign, "1") != "0");
+    const bool al = processor.getProp (PropID::autoAlign, "1") != "0";
+    view.setAutoAlign (al);
+    if (alignDot.getToggleState() != al) alignDot.setToggleState (al, dontSendNotification);
 }
 
 void RememberEditor::calibrateGrid()
@@ -888,7 +901,7 @@ void RememberEditor::timerCallback()
     playBtn.getProperties().set ("active", playing);
     loopBtn.getProperties().set ("active", loopBtn.getToggleState());
     for (Component* b : std::initializer_list<Component*> { &histBtn, &snapBtn, &holdBtn, &liveBtn, &saveHistBtn, &dragHistBtn, &toEditorBtn,
-                                                            &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &clearBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &importBtn, &saveClipBtn, &dragClipBtn, &keyBtn, &nameLoopBtn }) b->repaint();
+                                                            &trimBtn, &reverseBtn, &fadeInBtn, &fadeOutBtn, &normBtn, &clearBtn, &undoBtn, &redoBtn, &playBtn, &loopBtn, &wrapBtn, &importBtn, &saveClipBtn, &dragClipBtn, &keyBtn }) b->repaint();
 
     if (++infoTick % 8 == 0) refreshInfo();
     if (statusTicks > 0 && --statusTicks == 0) repaint (R (0, 696, designW, 30));
@@ -935,15 +948,18 @@ void RememberEditor::resized()
     playBtn.setBounds (R (colX (0), 652, cw, 40));
     loopBtn.setBounds (R (colX (1), 652, cw, 40));
     clearBtn.setBounds (R (colX (2), 652, cw, 40));
-    projectEd.setBounds (R (colX (3), 652, span (2), 40));
-    keyBtn.setBounds (R (colX (5), 652, span (2), 40));
-    nameLoopBtn.setBounds (R (colX (7), 652, cw, 40));
+    // Name ist das breiteste Feld, der LOOP-Punkt sitzt am rechten Ende im Feld; KEY ist ein normal grosser Knopf
+    projectEd.setBounds (R (colX (3), 652, span (4), 40));
+    nameLoopBtn.setBounds (R (colX (6) + cw - 88.0f, 652, 84.0f, 40));
+    keyBtn.setBounds (R (colX (7), 652, cw, 40));
+    alignDot.setBounds (R (colX (3) + 10.0f, 352, 200.0f, 40));
     saveClipBtn.setBounds (R (colX (8), 652, cw, 40));
     dragClipBtn.setBounds (R (colX (9), 652, cw, 40));
     menuBtn.setBounds (R (916, 14, 48, 40));
 
     const auto f = Font (rememberFont (14.0f * scale));
     projectEd.setFont (f);
+    projectEd.setBorder (BorderSize<int> (0, 0, 0, (int) (96.0f * scale)));
 }
 
 void RememberEditor::paint (Graphics& g)

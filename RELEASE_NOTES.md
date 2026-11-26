@@ -1,5 +1,10 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.6.1
+- **LOOP** is now a small round dot at the right end of the NAME field (blue = on): "Loop" is written into the file name, and TRIM keeps the loop length
+- **ALIGN TO KICK:** new dot in the history row next to the BPM. On by default; switch it off for pads or sounds without a kick on the beats (same setting as in the menu)
+- Bottom row: all buttons the same size, KEY shows the short form (A MIN), NAME is the widest field
+
 ### v1.6.0
 - **Auto-align on export (default on):** TO EDITOR, SAVE and DRAG WAV from the history now measure how far the kicks lie behind the beat lines of the host and start the file on the first kick. The length stays exactly the selected bars. No manual step needed. Plugins with latency in front of Remember no longer shift the loop
 - The status line shows the shift ("aligned to the first kick, 70.3 ms"). Menu: "Auto-align exports to the first kick" switches it off
