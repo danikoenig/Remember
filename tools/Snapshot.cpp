@@ -68,9 +68,12 @@ int main (int argc, char** argv)
         t += 512;
     }
 
+    if (getenv ("PROJ")) proc.setProp (PropID::project, getenv ("PROJ"));
+    if (getenv ("LOOPDOT")) proc.setProp (PropID::form, "Loop");
     if (getenv ("AUTOALIGN")) proc.setProp (PropID::autoAlign, getenv ("AUTOALIGN"));
     std::unique_ptr<AudioProcessorEditor> ed (proc.createEditor());
-    ed->setSize (980, 730);
+    const int snapW = getenv ("SNAP_W") ? atoi (getenv ("SNAP_W")) : 980;   // Breite, Hoehe folgt dem Seitenverhaeltnis (fuer die Webseite)
+    ed->setSize (snapW, (int) std::lround (snapW * 730.0 / 980.0));
     MessageManager::getInstance()->runDispatchLoopUntil (300);
 
     // Button "bars" druecken: letzte vollstaendige Takte (ohne Startpunkt)
@@ -104,7 +107,7 @@ int main (int argc, char** argv)
 
     // SAVE druecken (Ordner /tmp/remember_out), Ergebnis wird von aussen geprueft
     proc.setProp (PropID::folder, "/tmp/remember_out");
-    proc.setProp (PropID::project, "Test");
+    if (! getenv ("PROJ")) proc.setProp (PropID::project, "Test");
     proc.setProp (PropID::type, "Synth");
     proc.setProp (PropID::key, "A");
     proc.setProp (PropID::scale, "Minor");
@@ -126,6 +129,7 @@ int main (int argc, char** argv)
         std::printf ("clip length after import: %lld\n", (long long) proc.getSession().clip.length());
     }
 
+    if (getenv ("SHOT")) MessageManager::getInstance()->runDispatchLoopUntil (9000);   // Statuszeile verblassen lassen
     const auto img = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.0f);
     out.deleteFile();
     FileOutputStream os (out);

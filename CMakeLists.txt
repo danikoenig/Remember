@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Remember VERSION 1.6.5)
+project(Remember VERSION 1.6.6)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -93,7 +93,7 @@ if(REMEMBER_SNAPSHOT_TOOL)
         Source/Export.cpp Source/HistoryView.cpp
         Source/Look.cpp Source/PluginProcessor.cpp Source/PluginEditor.cpp)
     target_compile_definitions(RememberSnapshot PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0
-        JucePlugin_VersionString="0.1.0" JUCE_MODAL_LOOPS_PERMITTED=1)
+        JucePlugin_VersionString="${PROJECT_VERSION}" JUCE_MODAL_LOOPS_PERMITTED=1)
     target_link_libraries(RememberSnapshot PRIVATE juce::juce_audio_utils juce::juce_audio_formats
         PUBLIC juce::juce_recommended_config_flags)
 endif()

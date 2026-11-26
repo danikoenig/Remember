@@ -53,6 +53,8 @@ jobs:
           cp -R "$ART/AU/Remember.component" "pkg/Remember/"
           cp -R "$ART/CLAP/Remember.clap" "pkg/Remember/"
           cp INSTALL.txt "pkg/Remember/INSTALL.txt"
+          cp docs/Remember-Manual-EN.pdf docs/Remember-Manual-DE.pdf "pkg/Remember/"
+          cp docs/Remember-Manual-EN.pdf docs/Remember-Manual-DE.pdf dist/
           ditto -c -k --keepParent "pkg/Remember" "dist/Remember-VST3-macOS-arm64.zip"
 
       - name: Build installer (.pkg)
@@ -108,6 +110,7 @@ jobs:
           path: |
             dist/*.zip
             dist/*.pkg
+            dist/*.pdf
 
       - name: Release (bei Tag v* oder Commit mit [release])
         if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release]'))
@@ -121,6 +124,7 @@ jobs:
           files: |
             dist/*.zip
             dist/*.pkg
+            dist/*.pdf
 
       - name: Remove older releases (only the newest stays)
         if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release]'))

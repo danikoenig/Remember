@@ -1,5 +1,8 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.6.6
+- **Manuals** in English and German (PDF) are part of the release and of the VST3 ZIP
+
 ### v1.6.5
 - The ALIGN TO KICK dot is gone from the main window. The setting stays in the menu (top right): "Auto-align exports to the first kick (off for pads)"
 - The LOOP dot in the NAME field is off in a new plugin instance. Switch it on when you save a loop, then "Loop" is written into the file name
