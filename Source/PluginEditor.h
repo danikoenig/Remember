@@ -166,7 +166,7 @@ private:
     // Metadaten und Ordner
     juce::TextEditor projectEd;
     juce::TextButton keyBtn;
-    DotToggle nameLoopBtn, alignDot;
+    DotToggle nameLoopBtn;
     bool hintEditor = false;
 
     juce::TooltipWindow tooltip { this, 700 };

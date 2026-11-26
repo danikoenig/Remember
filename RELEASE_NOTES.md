@@ -1,5 +1,9 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.6.5
+- The ALIGN TO KICK dot is gone from the main window. The setting stays in the menu (top right): "Auto-align exports to the first kick (off for pads)"
+- The LOOP dot in the NAME field is off in a new plugin instance. Switch it on when you save a loop, then "Loop" is written into the file name
+
 ### v1.6.1
 - **LOOP** is now a small round dot at the right end of the NAME field (blue = on): "Loop" is written into the file name, and TRIM keeps the loop length
 - **ALIGN TO KICK:** new dot in the history row next to the BPM. On by default; switch it off for pads or sounds without a kick on the beats (same setting as in the menu)
