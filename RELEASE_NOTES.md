@@ -1,5 +1,8 @@
 Always-on audio recorder for macOS (Apple Silicon), VST3, Audio Unit and CLAP. By Dani Koenig.
 
+### v1.6.7
+- Manuals: tip for Bitwig loops (copy events instead of using the loop function)
+
 ### v1.6.6
 - **Manuals** in English and German (PDF) are part of the release and of the VST3 ZIP
 
